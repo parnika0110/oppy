@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 
 interface IngestionRun {
   _id: string;
@@ -32,7 +33,7 @@ const SOURCES = [
 ];
 
 export default function IngestionDashboard() {
-  const [secret, setSecret] = useState("");
+  const router = useRouter();
   const [status, setStatus] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState<string | null>(null); // null or source name
@@ -40,9 +41,13 @@ export default function IngestionDashboard() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/ingestion/status", {
-        headers: { Authorization: `Bearer ${secret}` },
-      });
+      // Cookie-based session auth — the browser sends oppy_admin_session
+      // automatically. No secret is ever typed into or stored by this page.
+      const res = await fetch("/api/admin/ingestion/status");
+      if (res.status === 401) {
+        router.push("/admin/login");
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setStatus(data);
@@ -52,7 +57,7 @@ export default function IngestionDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [secret]);
+  }, [router]);
 
   useEffect(() => {
     fetchStatus();
@@ -67,7 +72,11 @@ export default function IngestionDashboard() {
         ? `/api/cron/ingest?source=${encodeURIComponent(sourceName)}`
         : "/api/cron/ingest";
 
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${secret}` } });
+      const res = await fetch(url);
+      if (res.status === 401) {
+        router.push("/admin/login");
+        return;
+      }
       const data = await res.json();
 
       if (res.ok) {
@@ -115,17 +124,6 @@ export default function IngestionDashboard() {
         >
           {running === "all" ? "Running All Sources..." : "Run All Sources"}
         </button>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Admin Secret</label>
-        <input
-          type="password"
-          value={secret}
-          onChange={(e) => setSecret(e.target.value)}
-          placeholder="Paste ADMIN_SECRET to view or run ingestion"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-        />
       </div>
 
       {/* Result Banner */}
@@ -250,8 +248,9 @@ export default function IngestionDashboard() {
       )}
 
       {/* Navigation */}
-      <div className="text-sm text-gray-400 border-t border-gray-100 pt-4">
+      <div className="text-sm text-gray-400 border-t border-gray-100 pt-4 flex gap-4">
         <a href="/admin" className="text-blue-600 hover:underline">← Back to Admin</a>
+        <a href="/admin/sources" className="text-blue-600 hover:underline">Source Health →</a>
       </div>
     </div>
   );

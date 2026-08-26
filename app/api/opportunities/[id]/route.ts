@@ -14,7 +14,7 @@ export async function GET(
     }
 
     const collection = await getOpportunitiesCollection();
-    const opportunity = await collection.findOne({ _id: new ObjectId(id) });
+    const opportunity = await collection.findOne({ _id: new ObjectId(id), lifecycleStatus: { $ne: "archived" } });
 
     if (!opportunity) {
       return NextResponse.json({ error: "Opportunity not found." }, { status: 404 });
@@ -24,7 +24,7 @@ export async function GET(
   } catch (error) {
     console.error("GET /api/opportunities/[id] failed:", error);
     return NextResponse.json(
-      { error: "Failed to fetch opportunity." },
+      { error: "Unable to load this opportunity right now." },
       { status: 500 }
     );
   }

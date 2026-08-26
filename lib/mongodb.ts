@@ -72,4 +72,39 @@ export async function getIngestionRunsCollection() {
   return db.collection("ingestionRuns");
 }
 
+export async function getUsersCollection() {
+  const db = await getDb();
+  return db.collection("users");
+}
+
+export async function getSessionsCollection() {
+  const db = await getDb();
+  return db.collection("sessions");
+}
+
+export async function getSavedOpportunitiesCollection() {
+  const db = await getDb();
+  return db.collection("savedOpportunities");
+}
+
+/**
+ * Ensure the indexes PHASE 18 of the spec calls for exist. Safe to call
+ * repeatedly — createIndex is a no-op if the index already exists with the
+ * same spec. Called lazily from auth/saved routes rather than at import
+ * time, so it never runs during `next build`'s static analysis pass (no
+ * live Mongo connection then).
+ */
+let indexesEnsured = false;
+export async function ensureUserIndexes() {
+  if (indexesEnsured) return;
+  const db = await getDb();
+  await Promise.all([
+    db.collection("users").createIndex({ email: 1 }, { unique: true }),
+    db.collection("sessions").createIndex({ token: 1 }, { unique: true }),
+    db.collection("sessions").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.collection("savedOpportunities").createIndex({ userId: 1, opportunityId: 1 }, { unique: true }),
+  ]);
+  indexesEnsured = true;
+}
+
 export default clientPromise;

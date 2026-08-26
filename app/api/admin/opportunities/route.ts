@@ -3,6 +3,7 @@ import { getOpportunitiesCollection } from "@/lib/mongodb";
 import { enrichOpportunity } from "@/lib/openai";
 import { CreateOpportunityInput, CATEGORIES } from "@/types/opportunity";
 import { isAdminRequest } from "@/lib/auth";
+import { scoreOpportunity } from "@/lib/discovery/rank";
 
 /**
  * No user auth in the MVP. This route is protected by a single shared
@@ -10,7 +11,7 @@ import { isAdminRequest } from "@/lib/auth";
  * the founder (you) is calling it to manually curate the dataset.
  */
 export async function POST(request: NextRequest) {
-  if (!isAdminRequest(request)) {
+  if (!(await isAdminRequest(request))) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
@@ -62,6 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date();
+    const score = scoreOpportunity({ trustTier: "official", completeness: 100, deadlineKind: deadlineDate ? body.deadlineKind || "source_provided" : "unavailable" });
     const doc = {
       title: body.title,
       organization: body.organization,
@@ -75,9 +77,18 @@ export async function POST(request: NextRequest) {
       deadlineKind: deadlineDate ? body.deadlineKind || "source_provided" : "unavailable",
       deadlineLastVerifiedAt: deadlineDate ? now : null,
       source: body.source || null,
+      sourceUrl: body.sourceUrl || body.applicationLink,
+      officialSourceUrl: body.sourceUrl || body.applicationLink,
+      discoveredFrom: "Admin review",
+      lastVerifiedAt: now,
+      qualityScore: score.qualityScore,
+      opportunityScore: score.opportunityScore,
+      scoreVersion: score.scoreVersion,
+      enrichmentVersion: aiSummary ? "2026-08-v1" : null,
       aiSummary,
       categoryValidation,
       isActive: true,
+      lifecycleStatus: "active",
       createdAt: now,
       updatedAt: now,
     };
