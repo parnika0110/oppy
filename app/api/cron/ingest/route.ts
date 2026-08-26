@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   try {
     // Both scheduled and manual ingestion must be authenticated. This fails
     // closed when deployment secrets are missing instead of publishing a write endpoint.
-    if (!isCronRequest(request)) {
+    if (!(await isCronRequest(request))) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 

@@ -2,13 +2,12 @@ import * as cheerio from "cheerio";
 import { RawOpportunity, OpportunitySource } from "@/types/opportunity";
 
 /**
- * MLH (Major League Hacking) Source Adapter
+ * MLH + Devfolio Source Adapter
  *
  * MLH publishes a public events page at https://mlh.io/seasons/2025/events
- * which lists all official hackathons for the season. We scrape the static HTML
- * since MLH renders server-side.
+ * Devfolio exposes hackathon data via __NEXT_DATA__ JSON.
  *
- * Also hits the Devfolio explore page as a secondary source.
+ * Now extracts: images, event dates, registration deadlines.
  */
 export class DevfolioSource implements OpportunitySource {
   name = "Devfolio Hackathons";
@@ -70,11 +69,14 @@ export class DevfolioSource implements OpportunitySource {
           const link = $el.find("a").first().attr("href") || "";
           const fullLink = link.startsWith("http") ? link : `https://mlh.io${link}`;
 
+          // Image extraction
+          const imageUrl = $el.find("img").first().attr("src") || $el.find("[style*='background']").first().attr("style")?.match(/url\(['"]?(.*?)['"]?\)/)?.[1] || null;
+
           const dateText = $el.find(".event-date, [class*='date'], time").first().text().trim();
-          let deadline: Date | null = null;
+          let eventDate: Date | null = null;
           if (dateText) {
             const parsed = new Date(dateText);
-            if (!isNaN(parsed.getTime())) deadline = parsed;
+            if (!isNaN(parsed.getTime())) eventDate = parsed;
           }
 
           const location = $el.find(".event-location, [class*='location']").first().text().trim() || "In-Person / Online";
@@ -86,14 +88,16 @@ export class DevfolioSource implements OpportunitySource {
             location,
             description: `Official MLH hackathon: ${title}. MLH (Major League Hacking) is the official student hackathon league.`,
             applicationLink: fullLink,
-            deadline,
-            deadlineKind: deadline ? "source_provided" : "unavailable",
+            imageUrl: imageUrl || undefined,
+            deadline: null,
+            deadlineKind: eventDate ? "source_provided" : "unavailable",
             source: "MLH",
             sourceUrl: fullLink,
-            sourcePlatform: "Devfolio",
+            sourcePlatform: "Other",
             sourceId: `mlh-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
             tags: ["hackathon", "mlh", "student"],
-          });
+            eventDate,
+          } as RawOpportunity & { eventDate?: Date | null });
         });
 
         if (opportunities.length > 0) break; // Got results, no need for next season
@@ -141,8 +145,17 @@ export class DevfolioSource implements OpportunitySource {
 
           const slug = h.slug ?? title.toLowerCase().replace(/\s+/g, "-");
           const applicationLink = `https://devfolio.co/hackathons/${slug}`;
-          const parsedDeadline = h.ends_at ? new Date(h.ends_at) : null;
-          const deadline = parsedDeadline && !isNaN(parsedDeadline.getTime()) ? parsedDeadline : null;
+
+          // ── Date extraction ────────────────────────────────────────
+          const eventDate = parseDate(h.starts_at);
+          const eventEndDate = parseDate(h.ends_at);
+          const registrationDeadline = parseDate(h.hackathon_setting?.reg_ends_at ?? h.reg_ends_at);
+
+          // Use registration deadline as the primary deadline if available
+          const deadline = registrationDeadline || eventEndDate;
+
+          // ── Image extraction ────────────────────────────────────────
+          const imageUrl = h.cover_image ?? h.logo ?? h.image_url ?? null;
 
           opportunities.push({
             title,
@@ -151,6 +164,7 @@ export class DevfolioSource implements OpportunitySource {
             location: h.is_online ? "Online" : (h.city ?? "India"),
             description: String(h.desc ?? h.tagline ?? title).substring(0, 2000),
             applicationLink,
+            imageUrl: imageUrl || undefined,
             deadline,
             deadlineKind: deadline ? "source_provided" : "unavailable",
             source: "Devfolio",
@@ -158,7 +172,10 @@ export class DevfolioSource implements OpportunitySource {
             sourcePlatform: "Devfolio",
             sourceId: slug,
             tags: ["hackathon", "devfolio"],
-          });
+            eventDate,
+            eventEndDate,
+            registrationDeadline,
+          } as RawOpportunity & { eventDate?: Date | null; eventEndDate?: Date | null; registrationDeadline?: Date | null });
         }
       } catch {
         // JSON parse failed — fall through to link scraping
@@ -176,7 +193,12 @@ export class DevfolioSource implements OpportunitySource {
         if (!title || title.length < 3) return;
 
         const slug = link.split("/hackathons/")[1]?.replace(/\/$/, "") || "";
+        // Navigation/category URLs are not event listings and must never enter Browse.
+        if (!slug || ["applied", "open", "upcoming", "past", "all"].includes(slug.toLowerCase())) return;
         const fullUrl = link.startsWith("http") ? link : `https://devfolio.co${link}`;
+
+        // Try to extract image from link card
+        const imageUrl = $(el).find("img").first().attr("src") || null;
 
         opportunities.push({
           title,
@@ -185,6 +207,7 @@ export class DevfolioSource implements OpportunitySource {
           location: "Online",
           description: `Hackathon on Devfolio: ${title}`,
           applicationLink: fullUrl,
+          imageUrl: imageUrl || undefined,
           deadline: null,
           deadlineKind: "unavailable",
           source: "Devfolio",
@@ -198,4 +221,10 @@ export class DevfolioSource implements OpportunitySource {
 
     return opportunities;
   }
+}
+
+function parseDate(value: unknown): Date | null {
+  if (!value) return null;
+  const d = new Date(String(value));
+  return isNaN(d.getTime()) ? null : d;
 }

@@ -7,11 +7,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "discovery:run": "node --env-file=.env.local --import tsx scripts/discovery-run.ts",
+    "discovery:probe-devpost": "node --import tsx scripts/probe-devpost.ts",
+    "discovery:probe-devfolio": "node --import tsx scripts/probe-devfolio.ts",
+    "lifecycle:refresh": "node --env-file=.env.local --import tsx scripts/refresh-lifecycle.ts",
     "seed": "tsx scripts/seed.ts",
     "data:clear-static-deadlines": "node --env-file=.env.local --import tsx scripts/clear-static-deadlines.ts",
     "data:apply-static-deadline-clear": "node --env-file=.env.local --import tsx scripts/clear-static-deadlines.ts --apply"
   },
   "dependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
     "date-fns": "^4.1.0",
     "mongodb": "^6.12.0",

@@ -5,6 +5,9 @@ import { RawOpportunity, OpportunitySource } from "@/types/opportunity";
  *
  * Uses Devpost's internal JSON API (same endpoint the website uses)
  * to get live hackathon listings. Returns structured JSON — no HTML parsing needed.
+ *
+ * Extracts: title, description, deadline, imageUrl, eventDate, eventEndDate,
+ * location, organization, prize amount.
  */
 export class DevpostSource implements OpportunitySource {
   name = "Devpost Hackathons";
@@ -43,20 +46,40 @@ export class DevpostSource implements OpportunitySource {
           const displayedLocation = h.displayed_location as { location?: unknown } | undefined;
 
           const applicationLink = String(h.url ?? h.submission_gallery_url ?? "").trim();
-          const organization = String(displayedLocation?.location ?? h.organization_name ?? "Devpost").trim();
+          const organization = String(h.organization_name ?? displayedLocation?.location ?? "Devpost").trim();
           const description = String(h.tagline ?? h.description ?? title).substring(0, 2000);
           const location = String(displayedLocation?.location ?? (h.online ? "Online" : "In-Person")).trim() || "Online";
 
-          // Only retain a deadline explicitly supplied by the source.
-          let deadline: Date | null = null;
-          const endDate = h.submission_period_dates
-            ? String(h.submission_period_dates).split("–").pop()?.trim()
-            : null;
-          if (endDate) {
-            const parsed = new Date(endDate);
-            if (!isNaN(parsed.getTime())) deadline = parsed;
+          // ── Image extraction ─────────────────────────────────────────
+          const imageUrl = extractImage(h);
+
+          // ── Date extraction ──────────────────────────────────────────
+          // submission_period_dates is typically "Aug 20 – Sep 10, 2026"
+          let eventDate: Date | null = null;
+          let eventEndDate: Date | null = null;
+          let registrationDeadline: Date | null = null;
+
+          const periodDates = h.submission_period_dates ? String(h.submission_period_dates) : null;
+          if (periodDates) {
+            const parts = periodDates.split("–").map((s: string) => s.trim());
+            if (parts.length === 2) {
+              const startParsed = new Date(parts[0]);
+              const endParsed = new Date(parts[1]);
+              if (!isNaN(startParsed.getTime())) eventDate = startParsed;
+              if (!isNaN(endParsed.getTime())) {
+                eventEndDate = endParsed;
+                registrationDeadline = endParsed; // submission deadline = registration deadline
+              }
+            }
           }
 
+          // Fallback: explicit deadline fields
+          if (!registrationDeadline && h.registrations_close_at) {
+            const parsed = new Date(String(h.registrations_close_at));
+            if (!isNaN(parsed.getTime())) registrationDeadline = parsed;
+          }
+
+          const deadline = registrationDeadline;
           const slug = String(h.url ?? "").split("devpost.com/").pop()?.replace(/\/$/, "") ?? title;
           const prize = h.prize_amount ? `Prize: $${h.prize_amount}` : null;
 
@@ -67,6 +90,7 @@ export class DevpostSource implements OpportunitySource {
             location,
             description: prize ? `${description}\n\n${prize}` : description,
             applicationLink: applicationLink || `https://devpost.com/hackathons`,
+            imageUrl: imageUrl || undefined,
             deadline,
             deadlineKind: deadline ? "source_provided" : "unavailable",
             source: "Devpost",
@@ -74,7 +98,11 @@ export class DevpostSource implements OpportunitySource {
             sourcePlatform: "Devpost",
             sourceId: slug,
             tags: ["hackathon", "devpost"],
-          });
+            // Extended fields (stored as extra props on the raw object)
+            eventDate,
+            eventEndDate,
+            registrationDeadline,
+          } as RawOpportunity & { eventDate?: Date | null; eventEndDate?: Date | null; registrationDeadline?: Date | null });
         }
 
         console.log(`[Devpost] Page ${page}: ${hackathons.length} hackathons.`);
@@ -87,4 +115,23 @@ export class DevpostSource implements OpportunitySource {
     console.log(`[Devpost] Total fetched: ${opportunities.length}`);
     return opportunities;
   }
+}
+
+/** Extract the best available image from a Devpost hackathon JSON object. */
+function extractImage(h: Record<string, unknown>): string | null {
+  // Try thumbnail first (high-res event image)
+  for (const key of ["thumbnail_url", "thumbnail", "cover_image_url", "logo_url", "logo"]) {
+    const val = h[key];
+    if (typeof val === "string" && val.startsWith("http")) return val;
+  }
+  // Try nested themes/photos
+  const themes = h.themes as Record<string, unknown>[] | undefined;
+  if (Array.isArray(themes)) {
+    for (const theme of themes) {
+      if (typeof theme.background_image_url === "string" && theme.background_image_url.startsWith("http")) {
+        return theme.background_image_url;
+      }
+    }
+  }
+  return null;
 }
