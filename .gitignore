@@ -8,3 +8,4 @@ node_modules
 
 # Dev logs
 .freebuff/
+.env.production
