@@ -2,10 +2,26 @@
 
 import { useAuth } from "@/lib/AuthContext";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+
+/**
+ * Check if the browser has an admin session cookie.
+ * This is a read-only client check — actual authorization is enforced
+ * server-side in middleware.ts and every admin API route.
+ */
+function hasAdminSession(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie.includes("oppy_admin_session=");
+}
 
 export default function Nav() {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    setIsAdmin(hasAdminSession());
+  }, [user]); // Re-check when auth state changes
 
   async function handleLogout() {
     await logout();
@@ -30,6 +46,15 @@ export default function Nav() {
           <a href="/profile" className="underline-hover hover:text-[var(--ink)] transition-colors">
             Profile
           </a>
+          {isAdmin && (
+            <a
+              href="/admin"
+              className="hover:text-[var(--ink)] transition-colors"
+              style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.72rem", letterSpacing: "0.05em" }}
+            >
+              Admin
+            </a>
+          )}
           <button
             onClick={handleLogout}
             className="hover:text-[var(--ink)] transition-colors"
@@ -52,14 +77,6 @@ export default function Nav() {
           </a>
         </>
       )}
-
-      <a
-        href="/admin"
-        className="hover:text-[var(--ink)] transition-colors"
-        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.72rem", letterSpacing: "0.05em", opacity: 0.55 }}
-      >
-        Admin
-      </a>
     </nav>
   );
 }

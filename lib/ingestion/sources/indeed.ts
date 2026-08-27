@@ -1,0 +1,161 @@
+import { RawOpportunity, OpportunitySource, Category } from "@/types/opportunity";
+
+/**
+ * Indeed Jobs Source Adapter
+ *
+ * Uses JSearch (RapidAPI) with Indeed-specific queries.
+ * Required env: RAPIDAPI_KEY
+ */
+
+const BASE_URL = "https://jsearch.p.rapidapi.com/search";
+
+const INDEED_QUERIES = [
+  "site:indeed.com Software Engineer intern",
+  "site:indeed.com Software Developer entry level",
+  "site:indeed.com Data Analyst",
+  "site:indeed.com Machine Learning Engineer",
+  "site:indeed.com Frontend Developer",
+  "site:indeed.com Backend Developer",
+  "site:indeed.com Full Stack Developer",
+  "site:indeed.com DevOps Engineer",
+  "site:indeed.com Product Manager",
+  "site:indeed.com UX Designer",
+  "site:indeed.com Cloud Engineer",
+  "site:indeed.com Cybersecurity Analyst",
+  "site:indeed.com Graduate Trainee",
+  "site:indeed.com Student Intern",
+  "site:indeed.com Junior Developer",
+];
+
+function mapCategory(title?: string, empType?: string): Category {
+  const t = (title || "").toLowerCase();
+  const e = (empType || "").toLowerCase();
+  if (t.includes("intern") || e.includes("intern") || e.includes("part_time")) return "Internship";
+  return "Job";
+}
+
+function mapJob(job: any): RawOpportunity | null {
+  if (!job.job_title || !job.employer_name) return null;
+
+  const jobUrl: string =
+    job.job_apply_link ||
+    job.job_google_link ||
+    job.job_url ||
+    "";
+
+  if (!jobUrl) return null;
+
+  // Only include jobs actually from Indeed
+  const publisher = (job.job_publisher || "").toLowerCase();
+  const url = (job.job_url || "").toLowerCase();
+  if (!publisher.includes("indeed") && !url.includes("indeed.com")) return null;
+
+  const sourceId: string = job.job_id || "";
+  const city: string = job.job_city || "";
+  const country: string = job.job_country || "";
+  const isRemote: boolean = Boolean(job.job_is_remote);
+  const location: string = isRemote
+    ? "Remote"
+    : [city, country].filter(Boolean).join(", ") || "Unspecified";
+
+  const description: string =
+    job.job_description?.substring(0, 2000) || "See the Indeed listing for full details.";
+
+  const skills: string[] = (job.job_highlights?.Qualifications || [])
+    .slice(0, 5)
+    .map((q: string) => q.trim())
+    .filter(Boolean);
+
+  const category = mapCategory(job.job_title, job.job_employment_type);
+  const tags: string[] = Array.from(
+    new Set([category, ...skills.slice(0, 3)])
+  ).slice(0, 6);
+
+  const imageUrl: string | null = job.employer_logo || null;
+
+  const postedAt: Date | null = job.job_posted_at_timestamp
+    ? new Date(job.job_posted_at_timestamp * 1000)
+    : null;
+
+  return {
+    title: job.job_title,
+    organization: job.employer_name,
+    category,
+    location,
+    tags,
+    description,
+    applicationLink: jobUrl,
+    imageUrl,
+    deadline: null,
+    deadlineKind: "unavailable",
+    source: "Indeed",
+    sourceUrl: jobUrl,
+    sourcePlatform: "Indeed",
+    sourceId,
+    ...(postedAt ? { firstSeenAt: postedAt } : {}),
+    isRemote,
+  } as RawOpportunity & { isRemote: boolean };
+}
+
+export class IndeedSource implements OpportunitySource {
+  name = "Indeed Jobs";
+  platform = "Indeed" as const;
+
+  async fetch(): Promise<RawOpportunity[]> {
+    const apiKey = process.env.RAPIDAPI_KEY || process.env.JSEARCH_API_KEY;
+
+    if (!apiKey) {
+      console.warn("[Indeed] RAPIDAPI_KEY not configured — skipping.");
+      return [];
+    }
+
+    console.log("[Indeed] Starting Indeed job discovery...");
+
+    const seen = new Set<string>();
+    const results: RawOpportunity[] = [];
+
+    for (const q of INDEED_QUERIES) {
+      try {
+        const url = new URL(BASE_URL);
+        url.searchParams.set("query", q);
+        url.searchParams.set("num_pages", "1");
+        url.searchParams.set("page", "1");
+        url.searchParams.set("date_posted", "month");
+        url.searchParams.set("country", "us");
+        url.searchParams.set("language", "en");
+
+        const res = await fetch(url.toString(), {
+          headers: {
+            "X-RapidAPI-Key": apiKey,
+            "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
+          },
+          next: { revalidate: 0 },
+        });
+
+        if (!res.ok) {
+          console.error(`[Indeed] Query failed: ${res.status}`);
+          continue;
+        }
+
+        const data = await res.json();
+        const jobs: any[] = data?.data || [];
+
+        for (const job of jobs) {
+          if (!job.job_id || seen.has(job.job_id)) continue;
+          seen.add(job.job_id);
+
+          const mapped = mapJob(job);
+          if (mapped) results.push(mapped);
+        }
+
+        console.log(`[Indeed] "${q.substring(0, 50)}": ${jobs.length} raw, ${results.length} total`);
+        await new Promise((r) => setTimeout(r, 250));
+      } catch (err) {
+        console.error(`[Indeed] Error:`, err);
+      }
+    }
+
+    console.log(`[Indeed] Total unique jobs: ${results.length}`);
+    return results;
+  }
+}

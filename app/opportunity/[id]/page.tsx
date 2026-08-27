@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import SaveButton from "@/components/SaveButton";
+import ViewTracker from "@/components/ViewTracker";
 import { DetailImage } from "@/components/DetailImage";
 import { OpportunityDocument } from "@/types/opportunity";
+import { getBestCtaUrl, getCtaLabel } from "@/lib/url-utils";
 
 // ── Design token helpers ──────────────────────────────────────────────────
 const CATEGORY_STYLES: Record<string, { bg: string; color: string }> = {
@@ -76,12 +78,21 @@ export default async function OpportunityDetailsPage({
   const gradient = AVATAR_GRADIENTS[opp.category] ?? AVATAR_GRADIENTS.Event;
   const urgency = getUrgency(opp.deadline, opp.deadlineKind);
   const isClosed = opp.lifecycleStatus === "closed" || opp.lifecycleStatus === "archived";
-  const ctaUrl = (opp as any).applicationUrl || opp.applicationLink || (opp as any).eventUrl || opp.officialSourceUrl || opp.sourceUrl;
+  const ctaUrl = getBestCtaUrl(opp);
   
   const rawPlatform = opp.sourcePlatform || (opp as any).source || null;
   const sourcePlatform = rawPlatform === "Other" ? ((opp as any).source || opp.organization || null) : rawPlatform;
   
   const isRolling = opp.deadlineKind === "rolling";
+
+  // Category-aware CTA label
+  const ctaLabel = (() => {
+    const cat = opp.category;
+    if (cat === "Event" || cat === "Hackathon") return "Register →";
+    if (cat === "Job" || cat === "Internship") return "Apply →";
+    if (cat === "Fellowship" || cat === "Scholarship" || cat === "Grant") return "Learn more →";
+    return "Visit source →";
+  })();
 
   const appDeadline = fmtDate((opp as any).applicationDeadline || opp.deadline);
   const regDeadline = fmtDate((opp as any).registrationDeadline);
@@ -99,6 +110,9 @@ export default async function OpportunityDetailsPage({
 
   return (
     <div className="max-w-2xl mx-auto">
+      {/* Track this view for "Recently Viewed" on the dashboard */}
+      <ViewTracker opportunityId={opp._id} />
+
       {/* ── Breadcrumb ──────────────────────────────────────────── */}
       <a
         href="/"
@@ -179,18 +193,27 @@ export default async function OpportunityDetailsPage({
             </div>
           )}
 
-          {(eventDate || (appDeadline && isVerifiedDeadline) || regDeadline || isRolling) && (
-            <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
               {eventDate && (
                 <div className="surface-flat p-4">
                   <p className="eyebrow mb-1">Event date</p>
                   <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{eventDate}</p>
                 </div>
               )}
-              {appDeadline && isVerifiedDeadline && (
+              {appDeadline && isVerifiedDeadline ? (
                 <div className="surface-flat p-4">
                   <p className="eyebrow mb-1">Application deadline</p>
                   <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{appDeadline}</p>
+                </div>
+              ) : isRolling ? (
+                <div className="surface-flat p-4">
+                  <p className="eyebrow mb-1">Application deadline</p>
+                  <p className="text-sm font-medium" style={{ color: "var(--sage-deep)" }}>Rolling / Open</p>
+                </div>
+              ) : (
+                <div className="surface-flat p-4">
+                  <p className="eyebrow mb-1">Application deadline</p>
+                  <p className="text-sm" style={{ color: "var(--ink-soft)", opacity: 0.7 }}>Unavailable</p>
                 </div>
               )}
               {regDeadline && (
@@ -199,14 +222,7 @@ export default async function OpportunityDetailsPage({
                   <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{regDeadline}</p>
                 </div>
               )}
-              {isRolling && !appDeadline && (
-                <div className="surface-flat p-4">
-                  <p className="eyebrow mb-1">Application deadline</p>
-                  <p className="text-sm font-medium" style={{ color: "var(--sage-deep)" }}>Rolling / Open</p>
-                </div>
-              )}
             </div>
-          )}
 
           {opp.tags && opp.tags.length > 0 && (
             <div className="flex flex-wrap gap-2">
@@ -315,7 +331,7 @@ export default async function OpportunityDetailsPage({
             letterSpacing: "0.01em",
           }}
         >
-          {isClosed ? "Visit official source →" : "Apply / Visit official source →"}
+          {isClosed ? "Visit official source →" : ctaLabel}
         </a>
       )}
     </div>

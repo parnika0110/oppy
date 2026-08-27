@@ -3,6 +3,48 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
+function ImageBackfillSection() {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{ total: number; backfilled: number; failed: number; skipped: number } | null>(null);
+
+  const handleBackfill = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/backfill-images", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setResult(data);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+      <h3 className="text-sm font-semibold text-blue-800">Backfill Opportunity Images</h3>
+      <p className="text-xs text-blue-600 mt-1">
+        Fetch OpenGraph images for active opportunities that are missing thumbnails.
+        This makes requests to each opportunity's source URL to extract og:image.
+      </p>
+      <button
+        onClick={handleBackfill}
+        disabled={loading}
+        className="mt-3 px-4 py-2 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+      >
+        {loading ? "Fetching images..." : "Backfill Images"}
+      </button>
+      {result && (
+        <p className="mt-2 text-xs text-blue-700">
+          Done: {result.backfilled} images found, {result.failed} failed, {result.skipped} skipped (no URL) out of {result.total} total.
+        </p>
+      )}
+    </div>
+  );
+}
+
 interface SourceHealth {
   key: string;
   label: string;
@@ -160,6 +202,9 @@ export default function AdminSourcesPage() {
           ))}
         </div>
       )}
+
+      {/* ── Backfill Images ──── */}
+      <ImageBackfillSection />
 
       <div className="text-sm text-gray-400 border-t border-gray-100 pt-4 flex gap-4">
         <a href="/admin" className="text-blue-600 hover:underline">← Back to Admin</a>

@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { OpportunityDocument, Category } from "@/types/opportunity";
 import SaveButton from "./SaveButton";
+import { getBestCtaUrl, isPlatformHomepage } from "@/lib/url-utils";
 
 // ── Category colours matching globals.css tokens ─────────────────────────
 const CATEGORY_STYLES: Record<string, { bg: string; color: string; label: string }> = {
@@ -50,21 +51,64 @@ function fmtDate(iso: string | null | undefined) {
   }
 }
 
+// ── OG Image fallback hook ────────────────────────────────────────────────
+function useOgImageFallback(opp: OpportunityDocument, primaryImgFailed: boolean) {
+  const [ogImage, setOgImage] = useState<string | null>(null);
+  const [fetching, setFetching] = useState(false);
+
+  const sourceUrl = opp.sourceUrl || opp.applicationLink || opp.officialSourceUrl;
+
+  const fetchOg = useCallback(async () => {
+    if (ogImage || fetching || !sourceUrl) return;
+    setFetching(true);
+    try {
+      const res = await fetch(`/api/og-image?url=${encodeURIComponent(sourceUrl)}`);
+      const data = await res.json();
+      if (data.imageUrl) {
+        setOgImage(data.imageUrl);
+      }
+    } catch {
+      // silently fail
+    }
+  }, [sourceUrl, ogImage, fetching]);
+
+  // Trigger OG fetch when primary image fails
+  useEffect(() => {
+    if (primaryImgFailed && sourceUrl) {
+      fetchOg();
+    }
+  }, [primaryImgFailed, sourceUrl, fetchOg]);
+
+  return ogImage;
+}
+
 // ── Image fallback avatar ─────────────────────────────────────────────────
 function OrgAvatar({ org, category }: { org: string; category: string }) {
-  const letter = org.charAt(0).toUpperCase();
+  // Get 1-2 letter initials from organization name
+  const initials = (() => {
+    const words = org.replace(/[^a-zA-Z\s]/g, "").trim().split(/\s+/).filter(Boolean);
+    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+    if (words.length === 1 && words[0].length >= 2) return words[0].substring(0, 2).toUpperCase();
+    return org.substring(0, 2).toUpperCase();
+  })();
   const gradient = AVATAR_GRADIENTS[category] ?? AVATAR_GRADIENTS.Event;
   return (
     <div
-      className="h-36 w-full rounded-xl flex items-center justify-center mb-4 overflow-hidden"
+      className="h-36 w-full rounded-xl flex flex-col items-center justify-center mb-4 overflow-hidden gap-1"
       style={{ background: gradient }}
       aria-hidden="true"
     >
       <span
         className="font-display font-bold select-none"
-        style={{ fontSize: "3.5rem", color: "rgba(255,255,255,0.8)", lineHeight: 1 }}
+        style={{ fontSize: "2.5rem", color: "rgba(255,255,255,0.85)", lineHeight: 1 }}
       >
-        {letter}
+        {initials}
+      </span>
+      <span
+        className="font-mono select-none uppercase"
+        style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.6)", letterSpacing: "0.1em" }}
+      >
+        {category}
       </span>
     </div>
   );
@@ -72,12 +116,18 @@ function OrgAvatar({ org, category }: { org: string; category: string }) {
 
 export default function OpportunityCard({ opportunity }: { opportunity: OpportunityDocument }) {
   const [imgError, setImgError] = useState(false);
+  const [ogFailed, setOgFailed] = useState(false);
   const cat = CATEGORY_STYLES[opportunity.category] ?? CATEGORY_STYLES.Event;
   const urgency = getUrgencyStyle(opportunity.deadline, opportunity.deadlineKind);
   const deadlineLabel = fmtDate(opportunity.applicationDeadline || opportunity.deadline);
   const eventDateLabel = fmtDate(opportunity.eventDate);
   const isVerifiedDeadline = ["verified", "source_provided"].includes(opportunity.deadlineKind ?? "");
-  const hasImage = Boolean(opportunity.imageUrl) && !imgError;
+  const hasPrimaryImage = Boolean(opportunity.imageUrl) && !imgError;
+
+  // OG image fallback
+  const ogImage = useOgImageFallback(opportunity, imgError);
+  const hasOgImage = Boolean(ogImage) && !ogFailed;
+  const showImage = hasPrimaryImage || hasOgImage;
 
   // Is this a newly discovered opportunity (within last 48h)?
   const isNew = (() => {
@@ -86,13 +136,23 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
     return Date.now() - new Date(da).getTime() < 48 * 3600 * 1000;
   })();
 
-  // Determine CTA URL priority: eventUrl → applicationUrl → applicationLink
-  const ctaUrl = opportunity.eventUrl || opportunity.applicationUrl || opportunity.applicationLink;
+  // Determine best CTA URL — prefer specific URLs over platform homepages
+  const ctaUrl = getBestCtaUrl(opportunity);
+  const isExternalCta = Boolean(ctaUrl);
 
   // Source platform display — show org name instead of "Other"
   const rawPlatform = opportunity.sourcePlatform || opportunity.source || null;
   const sourcePlatform = rawPlatform === "Other" ? (opportunity.source || opportunity.organization || null) : rawPlatform;
   const isRolling = opportunity.deadlineKind === "rolling";
+
+  // Category-aware CTA label
+  const ctaLabel = (() => {
+    const cat = opportunity.category;
+    if (cat === "Event" || cat === "Hackathon") return "Register →";
+    if (cat === "Job" || cat === "Internship") return "Apply →";
+    if (cat === "Fellowship" || cat === "Scholarship" || cat === "Grant") return "Learn more →";
+    return "View details →";
+  })();
 
   return (
     <div
@@ -104,17 +164,21 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
         <SaveButton id={opportunity._id} />
       </div>
 
-      <Link href={`/opportunity/${opportunity._id}`} className="group flex flex-col h-full p-5">
+      <Link href={`/opportunity/${opportunity._id}`} className="group flex flex-col h-full p-5" target="_self">
         {/* ── Image or avatar ──── */}
-        {hasImage ? (
-          <div className="relative h-36 w-full rounded-xl mb-4 overflow-hidden">
+        {showImage ? (
+          <div className="relative w-full rounded-xl mb-4 overflow-hidden" style={{ aspectRatio: '16/9' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={opportunity.imageUrl!}
+              src={hasPrimaryImage ? opportunity.imageUrl! : ogImage!}
               alt={opportunity.imageAlt || `${opportunity.title} cover`}
               loading="lazy"
-              className="w-full h-full object-cover"
-              onError={() => setImgError(true)}
+              className="w-full h-full object-cover bg-[var(--card)]"
+              style={{ minHeight: '100%' }}
+              onError={() => {
+                if (hasPrimaryImage) setImgError(true);
+                else setOgFailed(true);
+              }}
             />
           </div>
         ) : (
@@ -192,11 +256,7 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
               <span className="eyebrow" style={{ fontSize: "0.62rem" }}>Deadline</span>{" "}
               Rolling / Open
             </p>
-          ) : !isVerifiedDeadline && !eventDateLabel ? (
-            <p className="text-xs" style={{ color: "var(--ink-soft)", opacity: 0.6 }}>
-              Deadline unavailable
-            </p>
-          ) : null}
+          ) : null /* Do NOT show unavailable deadline on cards */}
         </div>
 
         {/* ── Tags ──── */}
@@ -210,24 +270,39 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
           </div>
         )}
 
-        {/* ── Score + CTA ──── */}
+        {/* ── CTA ──── */}
         <div className="mt-auto pt-3 flex items-center justify-between gap-2">
-          {typeof opportunity.opportunityScore === "number" ? (
-            <span className="eyebrow" style={{ fontSize: "0.62rem" }}>
-              Score {opportunity.opportunityScore}
+          {isExternalCta ? (
+            <span
+              className="text-xs font-medium cursor-pointer"
+              style={{ color: "var(--lavender-deep)", fontFamily: "'Space Grotesk', sans-serif" }}
+              role="link"
+              tabIndex={0}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(ctaUrl!, "_blank", "noopener,noreferrer");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.open(ctaUrl!, "_blank", "noopener,noreferrer");
+                }
+              }}
+            >
+              {ctaLabel}
             </span>
           ) : (
-            <span />
+            <span
+              className="text-xs font-medium"
+              style={{ color: "var(--lavender-deep)", fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              View details →
+            </span>
           )}
-          <span
-            className="text-xs font-medium"
-            style={{ color: "var(--lavender-deep)", fontFamily: "'Space Grotesk', sans-serif" }}
-          >
-            View →
-          </span>
         </div>
       </Link>
     </div>
   );
 }
-

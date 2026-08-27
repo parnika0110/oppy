@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import { RawOpportunity, OpportunitySource } from "@/types/opportunity";
+import { resolveImageUrl } from "@/lib/images";
 
 /**
  * MLH + Devfolio Source Adapter
@@ -69,8 +70,12 @@ export class DevfolioSource implements OpportunitySource {
           const link = $el.find("a").first().attr("href") || "";
           const fullLink = link.startsWith("http") ? link : `https://mlh.io${link}`;
 
-          // Image extraction
-          const imageUrl = $el.find("img").first().attr("src") || $el.find("[style*='background']").first().attr("style")?.match(/url\(['"]?(.*?)['"]?\)/)?.[1] || null;
+          // Skip if the link is just the MLH homepage (not a specific event)
+          if (fullLink === "https://mlh.io/" || fullLink === "https://mlh.io") return;
+
+          // Image extraction — resolve relative URLs against mlh.io
+          const rawImg = $el.find("img").first().attr("src") || $el.find("[style*='background']").first().attr("style")?.match(/url\(['"]?(.*?)['"]?\)/)?.[1] || null;
+          const imageUrl = resolveImageUrl(rawImg, "https://mlh.io") || undefined;
 
           const dateText = $el.find(".event-date, [class*='date'], time").first().text().trim();
           let eventDate: Date | null = null;
@@ -88,7 +93,7 @@ export class DevfolioSource implements OpportunitySource {
             location,
             description: `Official MLH hackathon: ${title}. MLH (Major League Hacking) is the official student hackathon league.`,
             applicationLink: fullLink,
-            imageUrl: imageUrl || undefined,
+            imageUrl,
             deadline: null,
             deadlineKind: eventDate ? "source_provided" : "unavailable",
             source: "MLH",
@@ -197,8 +202,12 @@ export class DevfolioSource implements OpportunitySource {
         if (!slug || ["applied", "open", "upcoming", "past", "all"].includes(slug.toLowerCase())) return;
         const fullUrl = link.startsWith("http") ? link : `https://devfolio.co${link}`;
 
-        // Try to extract image from link card
-        const imageUrl = $(el).find("img").first().attr("src") || null;
+        // Try to extract image from link card — also check CSS background-image
+        const rawImg =
+          $(el).find("img").first().attr("src") ||
+          $(el).find("[style*='background-image']").first().attr("style")?.match(/url\(['"]?(.*?)['"]?\)/)?.[1] ||
+          null;
+        const imageUrl = resolveImageUrl(rawImg, "https://devfolio.co") || undefined;
 
         opportunities.push({
           title,
@@ -207,7 +216,7 @@ export class DevfolioSource implements OpportunitySource {
           location: "Online",
           description: `Hackathon on Devfolio: ${title}`,
           applicationLink: fullUrl,
-          imageUrl: imageUrl || undefined,
+          imageUrl,
           deadline: null,
           deadlineKind: "unavailable",
           source: "Devfolio",

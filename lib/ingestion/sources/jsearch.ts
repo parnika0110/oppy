@@ -11,23 +11,27 @@ import { RawOpportunity, OpportunitySource, Category } from "@/types/opportunity
 
 const BASE_URL = "https://jsearch.p.rapidapi.com/search";
 
-// Intern-oriented queries covering AI/ML/CS/Frontend/Backend/Research
+// Comprehensive queries covering all major job categories
 const SEARCH_QUERIES = [
+  // Software Engineering
   "Software Engineering Intern",
   "Software Developer Intern",
+  "Full Stack Developer Intern",
+  "Backend Engineering Intern",
+  "Frontend Engineering Intern",
+  // AI/ML
   "Machine Learning Intern",
   "Data Science Intern",
-  "AI Intern",
-  "Frontend Engineering Intern",
-  "Backend Engineering Intern",
-  "Full Stack Intern",
-  "Research Intern Computer Science",
-  "Student Developer",
+  "AI Research Intern",
+  // General
+  "Student Developer Program",
   "Graduate Software Engineer",
+  "Entry Level Software Engineer",
 ];
 
-// Normalise JSearch employment_type to our Category taxonomy.
-// "Job" is a first-class Category (see types/opportunity.ts) — not a cast-to-fit hack.
+// Country rotation — covers major job markets
+const COUNTRIES = ["IN", "US", "GB", "DE", "CA", "AU"];
+
 function mapCategory(empType?: string, title?: string): Category {
   const t = (title || "").toLowerCase();
   const e = (empType || "").toLowerCase();
@@ -35,12 +39,9 @@ function mapCategory(empType?: string, title?: string): Category {
   return "Job";
 }
 
-// Map raw JSearch job to our RawOpportunity shape
-function mapJob(job: any): RawOpportunity | null {
-  // Skip records with no real job title or company
+function mapJob(job: any, country: string): RawOpportunity | null {
   if (!job.job_title || !job.employer_name) return null;
 
-  // Build the best possible direct URL
   const jobUrl: string =
     job.job_apply_link ||
     job.job_google_link ||
@@ -49,42 +50,31 @@ function mapJob(job: any): RawOpportunity | null {
 
   if (!jobUrl) return null;
 
-  // Build a clean sourceId from the JSearch job_id
   const sourceId: string = job.job_id || "";
-
-  // Location
   const city: string = job.job_city || "";
-  const country: string = job.job_country || "";
+  const jobCountry: string = job.job_country || country;
   const isRemote: boolean = Boolean(job.job_is_remote);
   const location: string = isRemote
     ? "Remote"
-    : [city, country].filter(Boolean).join(", ") || "Unspecified";
+    : [city, jobCountry].filter(Boolean).join(", ") || "Unspecified";
 
-  // Description — JSearch provides full text
   const description: string =
     job.job_description?.substring(0, 2000) || "See the official listing for full details.";
 
-  // Skills / highlights
   const skills: string[] = (job.job_highlights?.Qualifications || [])
     .slice(0, 5)
     .map((q: string) => q.trim())
     .filter(Boolean);
 
-  // Tags derived from skills + category
   const category = mapCategory(job.job_employment_type, job.job_title);
   const tags: string[] = Array.from(
     new Set([category, ...skills.slice(0, 3)])
   ).slice(0, 6);
 
-  // Deadline — only store if the listing explicitly mentions one
-  // JSearch does not reliably expose application deadlines.
-  // We do not infer from posting date.
+  // JSearch does not reliably expose application deadlines
   const deadline: string | null = null;
-
-  // Image — use employer_logo if present, never fake one
   const imageUrl: string | null = job.employer_logo || null;
 
-  // Platform — prefer the direct platform name from JSearch
   const platformMap: Record<string, string> = {
     linkedin: "LinkedIn",
     indeed: "Indeed",
@@ -100,7 +90,6 @@ function mapJob(job: any): RawOpportunity | null {
     if (viaRaw.includes(key)) { sourcePlatform = label; break; }
   }
 
-  // Posted date (for discoveredAt ordering — real value from source)
   const postedAt: Date | null = job.job_posted_at_timestamp
     ? new Date(job.job_posted_at_timestamp * 1000)
     : null;
@@ -118,16 +107,15 @@ function mapJob(job: any): RawOpportunity | null {
     deadlineKind: "unavailable",
     source: sourcePlatform,
     sourceUrl: jobUrl,
-    sourcePlatform,
+    sourcePlatform: sourcePlatform as any,
     sourceId,
-    // Extended fields (cast to any to pass through ingestion index)
     ...(postedAt ? { firstSeenAt: postedAt } : {}),
     isRemote,
   } as RawOpportunity & { isRemote: boolean };
 }
 
 export class JSearchSource implements OpportunitySource {
-  name = "JSearch (LinkedIn/Indeed/Glassdoor)";
+  name = "JSearch (LinkedIn/Indeed/Glassdoor/Naukri)";
   platform = "JSearch" as const;
 
   async fetch(): Promise<RawOpportunity[]> {
@@ -138,56 +126,54 @@ export class JSearchSource implements OpportunitySource {
       return [];
     }
 
-    console.log("[JSearch] Starting live job discovery…");
+    console.log("[JSearch] Starting live job discovery across all markets...");
 
-    const seen = new Set<string>(); // dedup by sourceId across queries
+    const seen = new Set<string>();
     const results: RawOpportunity[] = [];
 
-    // Run a subset of queries (limit API calls in dev; rotate in prod)
-    // Process up to 3 queries × 10 results = 30 raw results per run
-    const activeQueries = SEARCH_QUERIES.slice(0, 3);
+    // Run ALL queries across ALL countries — each query × each country
+    for (const country of COUNTRIES) {
+      for (const q of SEARCH_QUERIES) {
+        try {
+          const url = new URL(BASE_URL);
+          url.searchParams.set("query", q);
+          url.searchParams.set("num_pages", "1");
+          url.searchParams.set("page", "1");
+          url.searchParams.set("date_posted", "month");
+          url.searchParams.set("country", country);
+          url.searchParams.set("language", "en");
 
-    for (const q of activeQueries) {
-      try {
-        const url = new URL(BASE_URL);
-        url.searchParams.set("query", q);
-        url.searchParams.set("num_pages", "1");
-        url.searchParams.set("page", "1");
-        url.searchParams.set("date_posted", "month"); // last 30 days
-        // Prefer India-based / remote roles
-        url.searchParams.set("country", "IN");
-        url.searchParams.set("language", "en");
+          const res = await fetch(url.toString(), {
+            headers: {
+              "X-RapidAPI-Key": apiKey,
+              "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
+            },
+            next: { revalidate: 0 },
+          });
 
-        const res = await fetch(url.toString(), {
-          headers: {
-            "X-RapidAPI-Key": apiKey,
-            "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
-          },
-          next: { revalidate: 0 }, // always fresh
-        });
+          if (!res.ok) {
+            console.error(`[JSearch] Query "${q}" (${country}) failed: ${res.status}`);
+            continue;
+          }
 
-        if (!res.ok) {
-          console.error(`[JSearch] Query "${q}" failed: ${res.status} ${res.statusText}`);
-          continue;
+          const data = await res.json();
+          const jobs: any[] = data?.data || [];
+
+          for (const job of jobs) {
+            if (!job.job_id || seen.has(job.job_id)) continue;
+            seen.add(job.job_id);
+
+            const mapped = mapJob(job, country);
+            if (mapped) results.push(mapped);
+          }
+
+          console.log(`[JSearch] "${q}" (${country}): ${jobs.length} raw, ${results.length} total`);
+
+          // Polite delay between requests (respect rate limits)
+          await new Promise((r) => setTimeout(r, 250));
+        } catch (err) {
+          console.error(`[JSearch] Error on "${q}" (${country}):`, err);
         }
-
-        const data = await res.json();
-        const jobs: any[] = data?.data || [];
-
-        for (const job of jobs) {
-          if (!job.job_id || seen.has(job.job_id)) continue;
-          seen.add(job.job_id);
-
-          const mapped = mapJob(job);
-          if (mapped) results.push(mapped);
-        }
-
-        console.log(`[JSearch] Query "${q}": ${jobs.length} raw, ${results.length} total so far`);
-
-        // Polite delay between requests
-        await new Promise((r) => setTimeout(r, 300));
-      } catch (err) {
-        console.error(`[JSearch] Query "${q}" error:`, err);
       }
     }
 

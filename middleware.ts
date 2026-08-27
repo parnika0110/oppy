@@ -60,9 +60,7 @@ export async function middleware(request: NextRequest) {
   // User-only routes — fast existence check only (redirect UX). The actual
   // security boundary is server-side: each page/API calls getCurrentUser(),
   // which looks the session token up in MongoDB and can reject/expire it.
-  // (Full DB-backed validation can't run in Edge middleware — the mongodb
-  // driver requires the Node runtime.)
-  const USER_PROTECTED = ['/dashboard', '/saved', '/profile']
+  const USER_PROTECTED = ['/dashboard', '/saved', '/profile', '/onboarding']
   if (USER_PROTECTED.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     const hasSessionCookie = Boolean(request.cookies.get('oppy_session')?.value)
     if (!hasSessionCookie) {
@@ -76,5 +74,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/dashboard/:path*', '/saved/:path*', '/profile/:path*'],
+  matcher: ['/admin/:path*', '/dashboard/:path*', '/saved/:path*', '/profile/:path*', '/onboarding/:path*'],
 }

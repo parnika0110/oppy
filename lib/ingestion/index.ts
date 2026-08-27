@@ -1,24 +1,80 @@
 import { getOpportunitiesCollection, getIngestionRunsCollection, getDb } from "@/lib/mongodb";
 import { RawOpportunity, OpportunitySource, IngestionRun } from "@/types/opportunity";
 
-// Source adapters
+// Source adapters — Hackathons & Events
 import { DevfolioSource } from "./sources/devfolio";
 import { DevpostSource } from "./sources/devpost";
-import { InternshalaSource } from "./sources/internshala";
 import { LumaSource } from "./sources/luma";
+import { EventbriteSource } from "./sources/eventbrite";
+
+// Source adapters — Jobs & Internships
 import { JSearchSource } from "./sources/jsearch";
+import { LinkedInSource } from "./sources/linkedin";
+import { IndeedSource } from "./sources/indeed";
+import { GlassdoorSource } from "./sources/glassdoor";
+import { NaukriSource } from "./sources/naukri";
+import { InternshalaSource } from "./sources/internshala";
+import { RemoteOKSource } from "./sources/remoteok";
+
+// Source adapters — Startups & Programs
+import { YCStartupsSource } from "./sources/yc-startups";
+import { HackerNewsSource } from "./sources/hackernews";
+import { WellfoundSource } from "./sources/wellfound";
+import { UnstopSource } from "./sources/unstop";
+
+// Source adapters — RSS & Aggregation
+import { RssFeedSource } from "./sources/rss-feeds";
 
 import { runDiscoveryPipeline } from "@/lib/discovery";
 import { refreshOpportunityLifecycle } from "@/lib/lifecycle";
 import { scoreOpportunity } from "@/lib/discovery/rank";
+import { fetchOpenGraphImage, resolveImageUrl } from "@/lib/images";
+
+// ── Source refresh intervals (in milliseconds) ──────────────────────────────
+// Used by admin dashboard to show freshness and by ingestion scheduling.
+export const SOURCE_REFRESH_INTERVALS: Record<string, number> = {
+  "Hacker News": 60 * 60 * 1000,            // 1 hour — fast-changing
+  "JSearch": 3 * 60 * 60 * 1000,            // 3 hours — job boards
+  "LinkedIn": 3 * 60 * 60 * 1000,
+  "Indeed": 3 * 60 * 60 * 1000,
+  "Glassdoor": 3 * 60 * 60 * 1000,
+  "Naukri": 3 * 60 * 60 * 1000,
+  "Internshala": 4 * 60 * 60 * 1000,        // 4 hours — internships
+  "RemoteOK": 3 * 60 * 60 * 1000,           // 3 hours — remote jobs
+  "Eventbrite": 6 * 60 * 60 * 1000,         // 6 hours — events
+  "Devpost": 6 * 60 * 60 * 1000,            // 6 hours — hackathons
+  "Devfolio": 6 * 60 * 60 * 1000,           // 6 hours — hackathons
+  "Unstop": 6 * 60 * 60 * 1000,             // 6 hours — competitions
+  "GitHub": 12 * 60 * 60 * 1000,            // 12 hours — OSS/programs
+  "YCStartups": 12 * 60 * 60 * 1000,        // 12 hours — startups
+  "Wellfound": 12 * 60 * 60 * 1000,         // 12 hours — startups
+  "Luma": 6 * 60 * 60 * 1000,              // 6 hours — events
+  "RssFeedSource": 6 * 60 * 60 * 1000,      // 6 hours — RSS feeds
+};
 
 // ── Registry of all active sources ──────────────────────────────────────────
+// Each source auto-skips if its required API key is missing (returns []).
 const ALL_SOURCES: OpportunitySource[] = [
-  new DevfolioSource(),
-  new DevpostSource(),
-  new InternshalaSource(),
-  new LumaSource(),
-  new JSearchSource(), // Real JSearch — returns [] if RAPIDAPI_KEY not configured
+  // ── Hackathons & Events ────────────────────────────────────────────────
+  new DevfolioSource(),    // MLH + Devfolio hackathons (no auth)
+  new DevpostSource(),     // Devpost hackathons (no auth)
+  new LumaSource(),        // Luma events (needs LUMA_CALENDARS)
+  new EventbriteSource(),  // Eventbrite events (no auth)
+  new UnstopSource(),      // Unstop/D2C competitions (no auth)
+  // ── Jobs & Internships ─────────────────────────────────────────────────
+  new JSearchSource(),     // Aggregated: LinkedIn/Indeed/Glassdoor/Naukri (needs RAPIDAPI_KEY)
+  new LinkedInSource(),    // LinkedIn Jobs via JSearch (needs RAPIDAPI_KEY)
+  new IndeedSource(),      // Indeed Jobs via JSearch (needs RAPIDAPI_KEY)
+  new GlassdoorSource(),   // Glassdoor Jobs via JSearch (needs RAPIDAPI_KEY)
+  new NaukriSource(),      // Naukri direct scrape (no auth)
+  new InternshalaSource(), // Internshala 8 categories (no auth)
+  new RemoteOKSource(),    // RemoteOK remote jobs (no auth)
+  // ── Startups & Programs ────────────────────────────────────────────────
+  new YCStartupsSource(),  // YC Work at a Startup (no auth)
+  new HackerNewsSource(),  // HN Who's Hiring (no auth)
+  new WellfoundSource(),   // Wellfound/AngelList via JSearch (needs RAPIDAPI_KEY)
+  // ── RSS & Aggregation ──────────────────────────────────────────────────
+  new RssFeedSource(),     // 15+ RSS feeds from job boards, communities, blogs
 ];
 
 // ── Result Types ────────────────────────────────────────────────────────────
@@ -125,10 +181,14 @@ export async function runIngestionPipeline(sourceName?: string): Promise<Pipelin
 
           if (exists) {
             // Update with any newly discovered data (images, dates, etc.)
-            const updates: Record<string, unknown> = { lastSeenAt: new Date(), updatedAt: new Date() };
+            const updates: Record<string, unknown> = { lastSeenAt: new Date(), updatedAt: new Date(), lastUpdatedAt: new Date() };
 
-            // Backfill missing fields from fresh source data
-            if (!exists.imageUrl && raw.imageUrl) updates.imageUrl = raw.imageUrl;
+            // Backfill or refresh image from fresh source data.
+            // Also refresh if the existing imageUrl is from a different source
+            // (e.g. we now have a better one from Devpost vs Devfolio).
+            if (raw.imageUrl && (!exists.imageUrl || exists.sourcePlatform !== raw.sourcePlatform)) {
+              updates.imageUrl = raw.imageUrl;
+            }
             if (!exists.eventDate && (raw as any).eventDate) updates.eventDate = new Date((raw as any).eventDate);
             if (!exists.eventEndDate && (raw as any).eventEndDate) updates.eventEndDate = new Date((raw as any).eventEndDate);
             if (!exists.registrationDeadline && (raw as any).registrationDeadline) updates.registrationDeadline = new Date((raw as any).registrationDeadline);
@@ -179,6 +239,7 @@ export async function runIngestionPipeline(sourceName?: string): Promise<Pipelin
             // Timestamps
             firstSeenAt: now,
             lastSeenAt: now,
+            lastUpdatedAt: now,
             discoveredAt: now,
             createdAt: now,
             updatedAt: now,
@@ -246,6 +307,15 @@ export async function runIngestionPipeline(sourceName?: string): Promise<Pipelin
     console.log(`[Ingestion] Promoted ${promoted} discovery candidates to opportunities.`);
   } catch (err) {
     console.error("[Ingestion] Candidate promotion failed:", err);
+  }
+
+  // ── Fetch OpenGraph images for opportunities missing imageUrl ────────────
+  let ogImagesFetched = 0;
+  try {
+    ogImagesFetched = await backfillOpenGraphImages(collection);
+    console.log(`[Ingestion] Backfilled ${ogImagesFetched} OpenGraph images.`);
+  } catch (err) {
+    console.error("[Ingestion] OG image backfill failed:", err);
   }
 
   const pipelineResult: PipelineResult = {
@@ -365,6 +435,59 @@ async function promoteApprovedCandidates(): Promise<number> {
   }
 
   return promoted;
+}
+
+// ── OpenGraph image backfill ─────────────────────────────────────────────────
+
+/**
+ * Find active opportunities missing imageUrl and try to fetch one from
+ * the opportunity's page via OpenGraph meta tags.
+ * Only processes opportunities with a valid applicationLink or sourceUrl.
+ * Rate-limited: processes at most 10 per ingestion run.
+ */
+async function backfillOpenGraphImages(collection: any): Promise<number> {
+  const now = new Date();
+  const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  // Find active opportunities without imageUrl that have a URL to fetch
+  const missing = await collection
+    .find({
+      imageUrl: { $in: [null, undefined, ""] },
+      lifecycleStatus: "active",
+      $or: [
+        { applicationLink: { $exists: true, $nin: [null, ""] } },
+        { sourceUrl: { $exists: true, $nin: [null, ""] } },
+      ],
+    })
+    .sort({ opportunityScore: -1, createdAt: -1 })
+    .limit(10) // Only try 10 per run to avoid rate limiting
+    .toArray();
+
+  if (missing.length === 0) return 0;
+
+  let fetched = 0;
+  for (const opp of missing) {
+    const pageUrl = opp.applicationLink || opp.sourceUrl;
+    if (!pageUrl || !pageUrl.startsWith("http")) continue;
+
+    try {
+      const ogImage = await fetchOpenGraphImage(pageUrl, 6000);
+      if (ogImage) {
+        await collection.updateOne(
+          { _id: opp._id },
+          { $set: { imageUrl: ogImage, updatedAt: new Date() } }
+        );
+        fetched++;
+        console.log(`[Ingestion] OG image found for: ${opp.title?.substring(0, 50)}`);
+      }
+      // Polite delay between requests
+      await new Promise((r) => setTimeout(r, 500));
+    } catch {
+      // Silently skip — OG fetch is best-effort
+    }
+  }
+
+  return fetched;
 }
 
 // ── Completeness scoring ─────────────────────────────────────────────────────

@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUsersCollection } from "@/lib/mongodb";
-import { verifyPassword, createSession, toSafeUser, SESSION_COOKIE, UserDocument } from "@/lib/userAuth";
+import { verifyPassword, createSession, SESSION_COOKIE } from "@/lib/userAuth";
+import { getUsersCollection, ensureUserIndexes } from "@/lib/mongodb";
 
+/**
+ * POST /api/auth/login
+ */
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = (await request.json()) || {};
+    const body = await request.json();
+    const { email, password } = body;
 
-    if (typeof email !== "string" || typeof password !== "string") {
+    if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
     }
 
+    await ensureUserIndexes();
     const users = await getUsersCollection();
-    const normalizedEmail = email.trim().toLowerCase();
-    const user = (await users.findOne({ email: normalizedEmail })) as unknown as UserDocument | null;
+    const user = await users.findOne({ email: email.trim().toLowerCase() });
 
-    // Deliberately identical error for "no such user" and "wrong password"
-    // so login can't be used to enumerate registered emails.
     if (!user) {
       return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
     }
@@ -27,18 +29,28 @@ export async function POST(request: NextRequest) {
 
     const token = await createSession(user._id);
 
-    const response = NextResponse.json({ user: toSafeUser(user) });
+    const response = NextResponse.json({
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        name: user.name,
+        onboardingComplete: Boolean(user.onboardingComplete),
+        preferences: user.preferences || {},
+        createdAt: user.createdAt.toISOString(),
+      },
+    });
+
     response.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 30,
+      maxAge: 60 * 60 * 24 * 30, // 30 days
     });
 
     return response;
-  } catch (error) {
-    console.error("[Auth] Login failed:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  } catch (err) {
+    console.error("[Login] Error:", err);
+    return NextResponse.json({ error: "Login failed." }, { status: 500 });
   }
 }

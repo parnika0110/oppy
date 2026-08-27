@@ -2,7 +2,9 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useState, useEffect, useCallback, useTransition } from "react";
-import { CATEGORIES } from "@/types/opportunity";
+import { CATEGORIES, COMMON_TAGS } from "@/types/opportunity";
+
+const LOCATION_SUGGESTIONS = ["Remote", "Online", "Global", "India", "Bengaluru", "Bangalore", "United States", "London", "Berlin", "Singapore"];
 
 /**
  * All filter/sort/search state lives in the URL (?q=&category=&location=&tag=&sort=&showClosed=).
@@ -18,6 +20,9 @@ export default function FilterBar() {
   // Local state for immediate UI feedback (optimistic updates)
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [category, setCategory] = useState(searchParams.get("category") || "");
+  const [location, setLocation] = useState(searchParams.get("location") || "");
+  const [tag, setTag] = useState(searchParams.get("tag") || "");
+  const [remote, setRemote] = useState(searchParams.get("remote") === "true");
   const [sort, setSort] = useState(searchParams.get("sort") || "recommended");
   const [showClosed, setShowClosed] = useState(searchParams.get("showClosed") === "true");
 
@@ -25,6 +30,9 @@ export default function FilterBar() {
   useEffect(() => {
     setQuery(searchParams.get("q") || "");
     setCategory(searchParams.get("category") || "");
+    setLocation(searchParams.get("location") || "");
+    setTag(searchParams.get("tag") || "");
+    setRemote(searchParams.get("remote") === "true");
     setSort(searchParams.get("sort") || "recommended");
     setShowClosed(searchParams.get("showClosed") === "true");
   }, [searchParams]);
@@ -56,9 +64,24 @@ export default function FilterBar() {
     return () => clearTimeout(handle);
   }, [query, updateParam, searchParams]);
 
+  // Debounce location input
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      if (location !== (searchParams.get("location") || "")) {
+        updateParam("location", location || null);
+      }
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [location, updateParam, searchParams]);
+
   const handleCategoryChange = (val: string) => {
     setCategory(val);
     updateParam("category", val || null);
+  };
+
+  const handleTagChange = (val: string) => {
+    setTag(val);
+    updateParam("tag", val || null);
   };
 
   const handleSortChange = (val: string) => {
@@ -74,8 +97,9 @@ export default function FilterBar() {
   const hasActiveFilters = !!(
     query ||
     category ||
-    searchParams.get("location") ||
-    searchParams.get("tag") ||
+    location ||
+    tag ||
+    remote ||
     showClosed
   );
 
@@ -141,8 +165,88 @@ export default function FilterBar() {
         })}
       </div>
 
+      {/* ── Location + Tag row ──────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Location input with datalist */}
+        <div className="relative">
+          <input
+            type="text"
+            aria-label="Filter by location"
+            placeholder="Location…"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            list="location-suggestions"
+            className="px-3 py-1.5 rounded-xl text-xs transition-shadow"
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              border: "1px solid var(--line)",
+              background: "var(--paper)",
+              color: "var(--ink)",
+              outline: "none",
+              width: "140px",
+            }}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "var(--lavender-deep)")}
+            onBlur={(e) => (e.currentTarget.style.borderColor = "var(--line)")}
+          />
+          <datalist id="location-suggestions">
+            {LOCATION_SUGGESTIONS.map((l) => (
+              <option key={l} value={l} />
+            ))}
+          </datalist>
+        </div>
+
+        {/* Tag dropdown */}
+        <select
+          aria-label="Filter by tag"
+          value={tag}
+          onChange={(e) => handleTagChange(e.target.value)}
+          className="px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer"
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            border: "1px solid var(--line)",
+            background: "var(--paper)",
+            color: "var(--ink)",
+            outline: "none",
+          }}
+        >
+          <option value="">All tags</option>
+          {COMMON_TAGS.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+      </div>
+
       {/* ── Sort + toggles ───────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
+        <label
+          className="flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-xl transition-colors"
+          style={{
+            border: "1px solid",
+            borderColor: remote ? "var(--lavender-deep)" : "var(--line)",
+            background: remote ? "var(--lavender)" : "var(--paper)",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={remote}
+            onChange={(e) => {
+              setRemote(e.target.checked);
+              updateParam("remote", e.target.checked ? "true" : null);
+            }}
+            className="sr-only"
+          />
+          <span className="text-xs">🌐</span>
+          <span
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: "0.7rem",
+              color: remote ? "#4A3F8A" : "var(--ink-soft)",
+            }}
+          >
+            Remote
+          </span>
+        </label>
+
         <select
           value={sort}
           onChange={(e) => handleSortChange(e.target.value)}
@@ -207,6 +311,9 @@ export default function FilterBar() {
             onClick={() => {
               setQuery("");
               setCategory("");
+              setLocation("");
+              setTag("");
+              setRemote(false);
               setSort("recommended");
               setShowClosed(false);
               startTransition(() => {
@@ -228,4 +335,3 @@ export default function FilterBar() {
     </div>
   );
 }
-

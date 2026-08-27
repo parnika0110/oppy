@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ObjectId } from "mongodb";
 import { getOpportunitiesCollection } from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
 
+/**
+ * GET /api/opportunities/[id]
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -10,22 +13,19 @@ export async function GET(
     const { id } = await params;
 
     if (!ObjectId.isValid(id)) {
-      return NextResponse.json({ error: "Invalid opportunity id." }, { status: 400 });
+      return NextResponse.json({ error: "Invalid ID." }, { status: 400 });
     }
 
     const collection = await getOpportunitiesCollection();
-    const opportunity = await collection.findOne({ _id: new ObjectId(id), lifecycleStatus: { $ne: "archived" } });
+    const item = await collection.findOne({ _id: new ObjectId(id) });
 
-    if (!opportunity) {
-      return NextResponse.json({ error: "Opportunity not found." }, { status: 404 });
+    if (!item) {
+      return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
 
-    return NextResponse.json({ item: opportunity });
-  } catch (error) {
-    console.error("GET /api/opportunities/[id] failed:", error);
-    return NextResponse.json(
-      { error: "Unable to load this opportunity right now." },
-      { status: 500 }
-    );
+    return NextResponse.json({ item: { ...item, _id: item._id.toString() } });
+  } catch (err) {
+    console.error("[Opportunity] Error:", err);
+    return NextResponse.json({ error: "Failed." }, { status: 500 });
   }
 }

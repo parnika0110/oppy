@@ -134,6 +134,10 @@ export interface OpportunityDocument {
   discoveredAt?: string | null;
   lastSeenAt?: string | null;
   firstSeenAt?: string | null;
+  lastUpdatedAt?: string | null;
+  sourcePublishedAt?: string | null;
+  lastIngestionRunId?: string | null;
+  nextRefreshAt?: string | null;
   aiSummary: AISummary | null;
   categoryValidation: CategoryValidation | null;
   isActive: boolean;

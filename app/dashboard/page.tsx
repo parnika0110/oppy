@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/userAuth";
-import { getOpportunitiesCollection, getSavedOpportunitiesCollection } from "@/lib/mongodb";
+import { getOpportunitiesCollection, getSavedOpportunitiesCollection, getDb } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import OpportunityCard from "@/components/OpportunityCard";
+import ExplanationBadge from "@/components/ExplanationBadge";
 import { OpportunityDocument } from "@/types/opportunity";
+import { rankForUser } from "@/lib/recommendations";
 
 function serialize(doc: any): OpportunityDocument {
   return { ...doc, _id: doc._id.toString() };
@@ -20,41 +22,51 @@ async function getDashboardData(userId: string) {
     $or: [{ lifecycleStatus: "active" }, { lifecycleStatus: { $exists: false }, isActive: true }],
   };
 
-  const [newOpportunities, closingSoon, upcomingEvents, savedLinks, activeCount] = await Promise.all([
-    opportunities.find(activeFilter).sort({ discoveredAt: -1, createdAt: -1 }).limit(6).toArray(),
+  const [
+    allActive,
+    closingSoon,
+    upcomingEvents,
+    savedLinks,
+    activeCount,
+    recentlyViewedLinks,
+  ] = await Promise.all([
+    // Get all active opportunities for recommendation scoring
+    opportunities.find(activeFilter).sort({ opportunityScore: -1, createdAt: -1 }).limit(100).toArray(),
+    // Closing soon: active opportunities with deadline in next 14 days
     opportunities
       .find({
         ...activeFilter,
-        $and: [
-          {
-            $or: [
-              { applicationDeadline: { $gte: now, $lte: in14Days } },
-              { registrationDeadline: { $gte: now, $lte: in14Days } },
-              { deadline: { $gte: now, $lte: in14Days }, deadlineKind: { $in: ["verified", "source_provided"] } },
-            ],
-          },
+        $or: [
+          { applicationDeadline: { $gte: now, $lte: in14Days } },
+          { registrationDeadline: { $gte: now, $lte: in14Days } },
+          { deadline: { $gte: now, $lte: in14Days }, deadlineKind: { $in: ["verified", "source_provided"] } },
         ],
       })
       .limit(6)
       .toArray(),
+    // Upcoming events: use eventDate (NOT just category === "Event")
+    // Any opportunity with a future eventDate qualifies
     opportunities
-      .find({ ...activeFilter, category: "Event", eventDate: { $gte: now } })
+      .find({
+        ...activeFilter,
+        eventDate: { $gte: now },
+      })
       .sort({ eventDate: 1 })
       .limit(6)
       .toArray(),
+    // Saved
     saved.find({ userId }).sort({ savedAt: -1 }).limit(6).toArray(),
+    // Active count
     opportunities.countDocuments(activeFilter),
+    // Recently viewed
+    getRecentlyViewed(userId),
   ]);
 
   let savedItems: OpportunityDocument[] = [];
   if (savedLinks.length > 0) {
     const ids = savedLinks
       .map((l) => {
-        try {
-          return new ObjectId(l.opportunityId);
-        } catch {
-          return null;
-        }
+        try { return new ObjectId(l.opportunityId); } catch { return null; }
       })
       .filter((x): x is ObjectId => x !== null);
     const docs = await opportunities.find({ _id: { $in: ids } }).toArray();
@@ -66,22 +78,58 @@ async function getDashboardData(userId: string) {
   }
 
   return {
-    newOpportunities: newOpportunities.map(serialize),
+    allActive: allActive.map(serialize),
     closingSoon: closingSoon.map(serialize),
     upcomingEvents: upcomingEvents.map(serialize),
     savedItems,
     activeCount,
+    recentlyViewedItems: recentlyViewedLinks,
   };
+}
+
+async function getRecentlyViewed(userId: string): Promise<OpportunityDocument[]> {
+  try {
+    const db = await getDb();
+    const views = await db
+      .collection("recentlyViewed")
+      .find({ userId })
+      .sort({ viewedAt: -1 })
+      .limit(6)
+      .toArray();
+
+    if (views.length === 0) return [];
+
+    const oppIds = views
+      .map((v) => {
+        try { return new ObjectId(v.opportunityId); } catch { return null; }
+      })
+      .filter((x): x is ObjectId => x !== null);
+
+    if (oppIds.length === 0) return [];
+
+    const opportunities = await getOpportunitiesCollection();
+    const docs = await opportunities.find({ _id: { $in: oppIds } }).toArray();
+    const byId = new Map(docs.map((d) => [d._id.toString(), d]));
+
+    return views
+      .map((v) => byId.get(v.opportunityId))
+      .filter((d): d is NonNullable<typeof d> => Boolean(d))
+      .map(serialize);
+  } catch {
+    return [];
+  }
 }
 
 function Section({
   title,
   emptyMessage,
   items,
+  explanations,
 }: {
   title: string;
   emptyMessage: string;
   items: OpportunityDocument[];
+  explanations?: Map<string, string[]>;
 }) {
   return (
     <section className="mb-10">
@@ -98,7 +146,16 @@ function Section({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {items.map((opp) => (
-            <OpportunityCard key={opp._id} opportunity={opp} />
+            <div key={opp._id} className="relative">
+              <OpportunityCard opportunity={opp} />
+              {explanations && explanations.has(opp._id) && (
+                <div className="mt-2 flex flex-wrap gap-1.5 px-1">
+                  {explanations.get(opp._id)!.map((exp, i) => (
+                    <ExplanationBadge key={i} text={exp} />
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -110,9 +167,22 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/dashboard");
 
-  const { newOpportunities, closingSoon, upcomingEvents, savedItems, activeCount } = await getDashboardData(user.id);
+  const { allActive, closingSoon, upcomingEvents, savedItems, activeCount, recentlyViewedItems } = await getDashboardData(user.id);
 
   const firstName = user.name.split(" ")[0];
+
+  // Personalized recommendations
+  const recommended = rankForUser(user, allActive, 6);
+  const recommendedIds = new Set(recommended.map((r) => r.opportunity._id));
+  const explanations = new Map<string, string[]>();
+  for (const r of recommended) {
+    explanations.set(r.opportunity._id, r.explanation);
+  }
+
+  // For "New opportunities", exclude already-recommended ones to avoid duplication
+  const newOpportunities = allActive
+    .filter((opp) => !recommendedIds.has(opp._id))
+    .slice(0, 6);
 
   return (
     <div>
@@ -126,7 +196,7 @@ export default async function DashboardPage() {
         </p>
         {!user.onboardingComplete && (
           <a
-            href="/profile"
+            href="/onboarding"
             className="mt-4 inline-block text-sm font-medium px-4 py-2 rounded-full"
             style={{ background: "var(--lavender)", color: "#4A3F8A", fontFamily: "'Space Grotesk', sans-serif" }}
           >
@@ -134,6 +204,17 @@ export default async function DashboardPage() {
           </a>
         )}
       </div>
+
+      <Section
+        title="Recommended for you"
+        items={recommended.map((r) => r.opportunity)}
+        explanations={explanations}
+        emptyMessage={
+          user.onboardingComplete
+            ? "We're learning your preferences. Browse more to improve recommendations."
+            : "Set your skills and interests to get personalized recommendations."
+        }
+      />
 
       <Section
         title="New opportunities"
@@ -158,6 +239,14 @@ export default async function DashboardPage() {
         items={savedItems}
         emptyMessage="You haven't saved anything yet. Browse opportunities and tap the bookmark icon."
       />
+
+      {recentlyViewedItems.length > 0 && (
+        <Section
+          title="Recently viewed"
+          items={recentlyViewedItems}
+          emptyMessage=""
+        />
+      )}
     </div>
   );
 }
