@@ -131,4 +131,3 @@ export async function ensureUserIndexes() {
   indexesEnsured = true;
 }
 
-export default getClientPromise();
