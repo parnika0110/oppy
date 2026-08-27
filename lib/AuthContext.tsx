@@ -1,96 +1,128 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
 
-interface AuthUser {
+interface User {
   id: string;
   email: string;
   name: string;
   onboardingComplete: boolean;
+  preferences: Record<string, any>;
+  createdAt: string;
 }
 
-interface AuthContextValue {
-  user: AuthUser | null;
+interface AuthContextType {
+  user: User | null;
   loading: boolean;
   savedIds: Set<string>;
-  refreshUser: () => Promise<void>;
-  refreshSaved: () => Promise<void>;
-  /** Toggle save state server-side. Returns the new saved state, or null if not logged in. */
-  toggleSaved: (opportunityId: string) => Promise<boolean | null>;
+  login: (email: string, password: string) => Promise<{ error?: string }>;
+  signup: (email: string, password: string, name: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  toggleSaved: (id: string) => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
-  const refreshUser = useCallback(async () => {
+  const fetchUser = useCallback(async () => {
     try {
       const res = await fetch("/api/auth/me");
       const data = await res.json();
-      setUser(data.user || null);
+      setUser(data.user);
+
+      // Load saved IDs
+      if (data.user) {
+        const savedRes = await fetch("/api/saved");
+        const savedData = await savedRes.json();
+        const ids = new Set<string>((savedData.items || []).map((item: any) => item._id));
+        setSavedIds(ids);
+      } else {
+        setSavedIds(new Set());
+      }
     } catch {
       setUser(null);
+      setSavedIds(new Set());
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const refreshSaved = useCallback(async () => {
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
+
+  const login = async (email: string, password: string) => {
     try {
-      const res = await fetch("/api/saved");
-      if (!res.ok) {
-        setSavedIds(new Set());
-        return;
-      }
-      const data = await res.json();
-      setSavedIds(new Set((data.items || []).map((i: any) => i._id)));
-    } catch {
-      setSavedIds(new Set());
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshUser();
-  }, [refreshUser]);
-
-  useEffect(() => {
-    if (user) refreshSaved();
-    else setSavedIds(new Set());
-  }, [user, refreshSaved]);
-
-  const toggleSaved = useCallback(
-    async (opportunityId: string): Promise<boolean | null> => {
-      if (!user) return null;
-      const res = await fetch("/api/saved", {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ opportunityId }),
+        body: JSON.stringify({ email, password }),
       });
-      if (!res.ok) return null;
       const data = await res.json();
-      setSavedIds((prev) => {
-        const next = new Set(prev);
-        if (data.saved) next.add(opportunityId);
-        else next.delete(opportunityId);
-        return next;
-      });
-      return data.saved as boolean;
-    },
-    [user]
-  );
+      if (data.error) return { error: data.error };
+      setUser(data.user);
+      await fetchUser(); // refresh saved IDs
+      return {};
+    } catch {
+      return { error: "Login failed." };
+    }
+  };
 
-  const logout = useCallback(async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    setUser(null);
-    setSavedIds(new Set());
-  }, []);
+  const signup = async (email: string, password: string, name: string) => {
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name }),
+      });
+      const data = await res.json();
+      if (data.error) return { error: data.error };
+      setUser(data.user);
+      return {};
+    } catch {
+      return { error: "Signup failed." };
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      setUser(null);
+      setSavedIds(new Set());
+    }
+  };
+
+  const toggleSaved = async (id: string) => {
+    const isSaved = savedIds.has(id);
+    try {
+      if (isSaved) {
+        await fetch(`/api/saved?opportunityId=${id}`, { method: "DELETE" });
+        setSavedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      } else {
+        await fetch("/api/saved", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ opportunityId: id }),
+        });
+        setSavedIds((prev) => new Set(prev).add(id));
+      }
+    } catch {
+      // silently fail
+    }
+  };
 
   return (
-    <AuthContext.Provider value={{ user, loading, savedIds, refreshUser, refreshSaved, toggleSaved, logout }}>
+    <AuthContext.Provider value={{ user, loading, savedIds, login, signup, logout, refreshUser: fetchUser, toggleSaved }}>
       {children}
     </AuthContext.Provider>
   );

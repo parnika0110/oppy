@@ -1,48 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/userAuth";
 import { getUsersCollection } from "@/lib/mongodb";
-import { getCurrentUser, toSafeUser, UserDocument } from "@/lib/userAuth";
-import { ObjectId } from "mongodb";
 
-const VALID_EXPERIENCE = ["Beginner", "Intermediate", "Advanced"];
+/**
+ * GET /api/profile
+ * PATCH /api/profile
+ */
+export async function GET() {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
+    return NextResponse.json({
+      profile: {
+        name: user.name,
+        email: user.email,
+      },
+      preferences: user.preferences || {},
+    });
+  } catch (err) {
+    console.error("[Profile] Error:", err);
+    return NextResponse.json({ profile: null, preferences: null });
+  }
+}
 
 export async function PATCH(request: NextRequest) {
-  const user = await getCurrentUser(request);
-  if (!user) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
     const body = await request.json();
-    const update: Record<string, unknown> = { updatedAt: new Date() };
-
-    if (typeof body.name === "string" && body.name.trim()) {
-      update.name = body.name.trim();
-    }
-    if (typeof body.onboardingComplete === "boolean") {
-      update.onboardingComplete = body.onboardingComplete;
-    }
-
-    const prefs: Record<string, unknown> = {};
-    if (Array.isArray(body.skills)) prefs.skills = body.skills.filter((s: unknown) => typeof s === "string").slice(0, 20);
-    if (Array.isArray(body.interests)) prefs.interests = body.interests.filter((s: unknown) => typeof s === "string").slice(0, 20);
-    if (Array.isArray(body.categories)) prefs.categories = body.categories.filter((s: unknown) => typeof s === "string").slice(0, 10);
-    if (Array.isArray(body.locations)) prefs.locations = body.locations.filter((s: unknown) => typeof s === "string").slice(0, 10);
-    if (typeof body.remote === "boolean") prefs.remote = body.remote;
-    if (typeof body.experience === "string" && VALID_EXPERIENCE.includes(body.experience)) {
-      prefs.experience = body.experience;
-    }
-
-    if (Object.keys(prefs).length > 0) {
-      for (const [key, value] of Object.entries(prefs)) {
-        update[`preferences.${key}`] = value;
-      }
-    }
-
     const users = await getUsersCollection();
-    await users.updateOne({ _id: new ObjectId(user.id) }, { $set: update });
 
-    const updated = (await users.findOne({ _id: new ObjectId(user.id) })) as unknown as UserDocument;
-    return NextResponse.json({ user: toSafeUser(updated) });
-  } catch (error) {
-    console.error("[Profile] Update failed:", error);
-    return NextResponse.json({ error: "Failed to update profile." }, { status: 500 });
+    const update: Record<string, any> = { updatedAt: new Date() };
+
+    if (body.name !== undefined) update.name = body.name;
+    if (body.experience_level !== undefined || body.experience !== undefined) {
+      update["preferences.experience"] = body.experience_level || body.experience;
+    }
+    if (body.categories !== undefined) update["preferences.categories"] = body.categories;
+    if (body.interests !== undefined) update["preferences.interests"] = body.interests;
+    if (body.locations !== undefined) update["preferences.locations"] = body.locations;
+    if (body.remote !== undefined) update["preferences.remote"] = body.remote;
+    if (body.skills !== undefined) update["preferences.skills"] = body.skills;
+    if (body.onboarding_complete !== undefined) update.onboardingComplete = body.onboarding_complete;
+
+    await users.updateOne({ _id: new (await import("mongodb")).ObjectId(user.id) }, { $set: update });
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("[Profile] Error:", err);
+    return NextResponse.json({ error: "Failed to update." }, { status: 500 });
   }
 }

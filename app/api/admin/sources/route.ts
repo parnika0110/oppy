@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getIngestionRunsCollection } from "@/lib/mongodb";
 import { isAdminRequest } from "@/lib/auth";
 import { isLumaConfigured, getCalendarSlugs } from "@/lib/ingestion/sources/luma";
+import { getSourceInterval, getSourceIntervalLabel, isSourceOverdue, getNextRefreshAt } from "@/lib/ingestion/scheduler";
 
 /**
  * GET /api/admin/sources
@@ -19,12 +20,18 @@ interface SourceMeta {
 }
 
 function getSourceRegistry(): SourceMeta[] {
+  const hasRapidApi = Boolean(process.env.RAPIDAPI_KEY || process.env.JSEARCH_API_KEY);
   return [
+    // ── Hackathons & Events (no auth needed) ─────────────────────────────
     {
-      key: "JSearch (LinkedIn/Indeed/Glassdoor)",
-      label: "JSearch",
-      configured: Boolean(process.env.RAPIDAPI_KEY || process.env.JSEARCH_API_KEY),
-      configNote: "Requires RAPIDAPI_KEY",
+      key: "Devpost",
+      label: "Devpost",
+      configured: true,
+    },
+    {
+      key: "Devfolio",
+      label: "Devfolio + MLH",
+      configured: true,
     },
     {
       key: "Luma Events",
@@ -33,13 +40,43 @@ function getSourceRegistry(): SourceMeta[] {
       configNote: "Requires LUMA_CALENDARS",
     },
     {
-      key: "Devpost",
-      label: "Devpost",
-      configured: true, // public scraping, no credential required
+      key: "Eventbrite Events",
+      label: "Eventbrite",
+      configured: true,
     },
     {
-      key: "Devfolio",
-      label: "Devfolio",
+      key: "Unstop (D2C)",
+      label: "Unstop",
+      configured: true,
+    },
+    // ── Jobs & Internships ────────────────────────────────────────────────
+    {
+      key: "JSearch (LinkedIn/Indeed/Glassdoor/Naukri)",
+      label: "JSearch (Aggregated)",
+      configured: hasRapidApi,
+      configNote: "Requires RAPIDAPI_KEY — covers LinkedIn, Indeed, Glassdoor, Naukri, ZipRecruiter",
+    },
+    {
+      key: "LinkedIn Jobs",
+      label: "LinkedIn",
+      configured: hasRapidApi,
+      configNote: "Requires RAPIDAPI_KEY (via JSearch)",
+    },
+    {
+      key: "Indeed Jobs",
+      label: "Indeed",
+      configured: hasRapidApi,
+      configNote: "Requires RAPIDAPI_KEY (via JSearch)",
+    },
+    {
+      key: "Glassdoor Jobs",
+      label: "Glassdoor",
+      configured: hasRapidApi,
+      configNote: "Requires RAPIDAPI_KEY (via JSearch)",
+    },
+    {
+      key: "Naukri",
+      label: "Naukri",
       configured: true,
     },
     {
@@ -48,30 +85,37 @@ function getSourceRegistry(): SourceMeta[] {
       configured: true,
     },
     {
-      key: "GitHub",
-      label: "GitHub",
-      configured: Boolean(process.env.GITHUB_TOKEN) || true, // works unauthenticated at lower rate limits
-      configNote: process.env.GITHUB_TOKEN ? undefined : "Unauthenticated (low rate limit) — set GITHUB_TOKEN to raise it",
-    },
-    {
-      key: "RSS",
-      label: "RSS",
+      key: "RemoteOK",
+      label: "RemoteOK",
       configured: true,
     },
-    // Not currently implemented as adapters — surfaced honestly as not configured
-    // rather than hidden, so the admin sees the full intended source list from
-    // the product spec (Naukri, LinkedIn as direct sources beyond JSearch).
+    // ── Startups & Programs ──────────────────────────────────────────────
     {
-      key: "Naukri (direct)",
-      label: "Naukri",
-      configured: false,
-      configNote: "Not implemented as a direct source — reachable today only via JSearch aggregation",
+      key: "YC Work at a Startup",
+      label: "YCombinator",
+      configured: true,
     },
     {
-      key: "LinkedIn (direct)",
-      label: "LinkedIn",
-      configured: false,
-      configNote: "Not implemented as a direct source — reachable today only via JSearch aggregation",
+      key: "Hacker News Who's Hiring",
+      label: "Hacker News",
+      configured: true,
+    },
+    {
+      key: "Wellfound (AngelList)",
+      label: "Wellfound",
+      configured: hasRapidApi,
+      configNote: "Requires RAPIDAPI_KEY (via JSearch)",
+    },
+    {
+      key: "GitHub",
+      label: "GitHub",
+      configured: true,
+    },
+    // ── RSS & Aggregation ────────────────────────────────────────────────
+    {
+      key: "RSS Feeds",
+      label: "RSS Feeds",
+      configured: true,
     },
   ];
 }
@@ -107,13 +151,20 @@ export async function GET(request: NextRequest) {
           { fetched: 0, published: 0, duplicates: 0, rejected: 0 }
         );
 
+        // Scheduling metadata
+        const intervalMs = getSourceInterval(meta.key);
+        const intervalLabel = getSourceIntervalLabel(meta.key);
+        const lastRunIso = lastRun?.startedAt || null;
+        const isOverdue = isSourceOverdue(meta.key, lastRunIso);
+        const nextRefresh = getNextRefreshAt(meta.key, lastRunIso);
+
         return {
           key: meta.key,
           label: meta.label,
           configured: meta.configured,
           configNote: meta.configNote || null,
-          enabled: meta.configured, // sources without required config cannot run
-          lastCheckedAt: lastRun?.startedAt || null,
+          enabled: meta.configured,
+          lastCheckedAt: lastRunIso,
           lastSuccessAt: lastSuccess?.startedAt || null,
           lastFailureAt: lastFailure?.startedAt || null,
           lastError: lastFailure?.errors?.[0] || null,
@@ -122,7 +173,12 @@ export async function GET(request: NextRequest) {
           published: totals.published,
           duplicates: totals.duplicates,
           rejected: totals.rejected,
-          // Luma-specific: show configured calendar slugs (not credentials)
+          // Scheduling
+          refreshIntervalMs: intervalMs,
+          refreshIntervalLabel: intervalLabel,
+          isOverdue,
+          nextRefreshAt: nextRefresh,
+          // Luma-specific
           ...(meta.label === "Luma" ? { calendars: getCalendarSlugs() } : {}),
         };
       })

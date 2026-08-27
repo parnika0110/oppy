@@ -1,10 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/userAuth";
 
-export async function GET(request: NextRequest) {
-  const user = await getCurrentUser(request);
-  if (!user) {
-    return NextResponse.json({ user: null }, { status: 200 });
+/**
+ * GET /api/auth/me
+ */
+export async function GET() {
+  try {
+    const user = await getCurrentUser();
+    return NextResponse.json({ user });
+  } catch (err) {
+    console.error("[Me] Error:", err);
+    return NextResponse.json({ user: null });
   }
-  return NextResponse.json({ user });
 }

@@ -182,7 +182,7 @@ export default function AdminPage() {
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
           <a
-            href="/admin/ingestion"
+            href="/admin/runs"
             style={{
               fontSize: "0.85rem",
               color: "var(--ink-soft)",
@@ -194,7 +194,22 @@ export default function AdminPage() {
               fontWeight: 500,
             }}
           >
-            Ingestion →
+            Runs →
+          </a>
+          <a
+            href="/admin/sources"
+            style={{
+              fontSize: "0.85rem",
+              color: "var(--ink-soft)",
+              border: "1px solid var(--line)",
+              padding: "0.4rem 0.9rem",
+              borderRadius: "999px",
+              textDecoration: "none",
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontWeight: 500,
+            }}
+          >
+            Sources →
           </a>
           <button
             onClick={handleLogout}

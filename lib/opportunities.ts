@@ -45,18 +45,124 @@ function definitivelyClosedFilter(now: Date): Filter<Document> {
 }
 
 export function publicOpportunityFilter(params: {
-  q?: string; category?: string | null; location?: string; tag?: string; showClosed: boolean;
+  q?: string; category?: string | null; categories?: string; interests?: string; location?: string; tag?: string; remote?: string; experience?: string; showClosed: boolean;
 }): Filter<Document> {
   const clauses: Filter<Document>[] = [lifecycleFilter(params.showClosed)];
   if (!params.showClosed) clauses.push(definitivelyClosedFilter(new Date()));
-  if (params.category && CATEGORIES.includes(params.category as Category)) clauses.push({ category: params.category });
+
+  // Multi-category support: "Job,Internship" or single "Job"
+  const categoryList = params.categories
+    ? params.categories.split(",").map((c) => c.trim()).filter((c) => CATEGORIES.includes(c as Category))
+    : params.category && CATEGORIES.includes(params.category as Category)
+    ? [params.category]
+    : [];
+  if (categoryList.length === 1) {
+    clauses.push({ category: categoryList[0] });
+  } else if (categoryList.length > 1) {
+    clauses.push({ category: { $in: categoryList } });
+  }
+
   if (params.location) clauses.push({ location: locationMatcher(params.location) });
   if (params.tag) clauses.push({ tags: params.tag });
+  if (params.remote === "true") clauses.push({ $or: [{ isRemote: true }, { location: { $regex: "^remote|^online", $options: "i" } }] });
+
+  // Interests: comma-separated keywords matched against title, tags, description
+  if (params.interests) {
+    const interestList = params.interests.split(",").map((i) => i.trim()).filter(Boolean);
+    if (interestList.length > 0) {
+      const interestClauses = interestList.map((interest) => {
+        const escaped = interest.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return { $or: [
+          { tags: { $regex: escaped, $options: "i" } },
+          { title: { $regex: escaped, $options: "i" } },
+          { description: { $regex: escaped, $options: "i" } },
+        ] };
+      });
+      clauses.push({ $or: interestClauses });
+    }
+  }
+
   if (params.q) {
     const escaped = params.q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     clauses.push({ $or: [{ title: { $regex: escaped, $options: "i" } }, { organization: { $regex: escaped, $options: "i" } }, { description: { $regex: escaped, $options: "i" } }, { tags: { $regex: escaped, $options: "i" } }] });
   }
   return { $and: clauses };
+}
+
+/**
+ * Build a BROAD candidate query for two-stage retrieval.
+ *
+ * Stage 1 uses this to get candidates from MongoDB.
+ * Stage 2 scores and ranks them server-side using the relevance engine.
+ *
+ * Key difference from publicOpportunityFilter:
+ * - Does NOT filter by interests, location, or experience (those are scoring signals)
+ * - Category IS a hard filter (user chose Internship → return internships)
+ * - Remote is a soft preference (don't eliminate non-remote, just prefer them)
+ */
+export function buildCandidateFilter(params: {
+  categories?: string[];
+  remote?: boolean;
+  q?: string;
+}): Filter<Document> {
+  const clauses: Filter<Document>[] = [
+    lifecycleFilter(false),
+    definitivelyClosedFilter(new Date()),
+  ];
+
+  // Category IS a hard filter
+  if (params.categories && params.categories.length > 0) {
+    const valid = params.categories.filter((c) => CATEGORIES.includes(c as Category));
+    if (valid.length === 1) {
+      clauses.push({ category: valid[0] });
+    } else if (valid.length > 1) {
+      clauses.push({ category: { $in: valid } });
+    }
+  }
+
+  // Optional keyword search
+  if (params.q) {
+    const escaped = params.q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    clauses.push({
+      $or: [
+        { title: { $regex: escaped, $options: "i" } },
+        { organization: { $regex: escaped, $options: "i" } },
+        { description: { $regex: escaped, $options: "i" } },
+        { tags: { $regex: escaped, $options: "i" } },
+      ],
+    });
+  }
+
+  return { $and: clauses };
+}
+
+/**
+ * Progressive fallback: if strict category match yields too few results,
+ * relax constraints progressively.
+ */
+export function buildFallbackFilters(params: {
+  categories?: string[];
+  remote?: boolean;
+  q?: string;
+}): Filter<Document>[] {
+  const fallbacks: Filter<Document>[] = [];
+
+  // Level 1: exact categories (already handled by buildCandidateFilter)
+  // Level 2: if category + interests + location gives too few, try just categories
+  // Level 3: if still few, try broad active opportunities
+  // Level 4: all active opportunities
+
+  if (params.categories && params.categories.length > 0) {
+    // Remove category constraint but keep lifecycle
+    fallbacks.push({
+      $and: [
+        lifecycleFilter(false),
+        definitivelyClosedFilter(new Date()),
+      ],
+    });
+  }
+
+  return fallbacks;
 }
 
 export function opportunitySort(sort: string): Sort {

@@ -103,6 +103,7 @@ export async function ensureUserIndexes() {
     db.collection("sessions").createIndex({ token: 1 }, { unique: true }),
     db.collection("sessions").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.collection("savedOpportunities").createIndex({ userId: 1, opportunityId: 1 }, { unique: true }),
+    db.collection("recentlyViewed").createIndex({ userId: 1, viewedAt: -1 }),
   ]);
   indexesEnsured = true;
 }

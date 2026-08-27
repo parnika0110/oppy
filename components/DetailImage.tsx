@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { OpportunityDocument } from "@/types/opportunity";
 
 const AVATAR_GRADIENTS: Record<string, string> = {
@@ -14,19 +14,50 @@ const AVATAR_GRADIENTS: Record<string, string> = {
 
 export function DetailImage({ opp }: { opp: OpportunityDocument }) {
   const [imgError, setImgError] = useState(false);
+  const [ogImage, setOgImage] = useState<string | null>(null);
+  const [ogFailed, setOgFailed] = useState(false);
+  const [fetchingOg, setFetchingOg] = useState(false);
   const gradient = AVATAR_GRADIENTS[opp.category] ?? AVATAR_GRADIENTS.Event;
-  const hasImage = Boolean(opp.imageUrl) && !imgError;
+  const hasPrimaryImage = Boolean(opp.imageUrl) && !imgError;
+
+  const sourceUrl = (opp as any).sourceUrl || (opp as any).applicationLink || (opp as any).officialSourceUrl;
+
+  const fetchOg = useCallback(async () => {
+    if (ogImage || fetchingOg || !sourceUrl || !sourceUrl.startsWith("http")) return;
+    setFetchingOg(true);
+    try {
+      const res = await fetch(`/api/og-image?url=${encodeURIComponent(sourceUrl)}`);
+      const data = await res.json();
+      if (data.imageUrl) {
+        setOgImage(data.imageUrl);
+      }
+    } catch {
+      // silently fail
+    }
+  }, [sourceUrl, ogImage, fetchingOg]);
+
+  useEffect(() => {
+    if (imgError && sourceUrl) {
+      fetchOg();
+    }
+  }, [imgError, sourceUrl, fetchOg]);
+
+  const hasOgImage = Boolean(ogImage) && !ogFailed;
+  const showImage = hasPrimaryImage || hasOgImage;
 
   return (
-    <div className="relative h-40 flex items-end p-6" style={{ background: gradient }}>
-      {hasImage ? (
+    <div className="relative w-full flex items-end p-6" style={{ background: gradient, aspectRatio: '16/7' }}>
+      {showImage ? (
         <div className="absolute inset-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={opp.imageUrl!}
+            src={hasPrimaryImage ? opp.imageUrl! : ogImage!}
             alt={opp.imageAlt || `${opp.title} cover`}
             className="w-full h-full object-cover"
-            onError={() => setImgError(true)}
+            onError={() => {
+              if (hasPrimaryImage) setImgError(true);
+              else setOgFailed(true);
+            }}
           />
         </div>
       ) : (
