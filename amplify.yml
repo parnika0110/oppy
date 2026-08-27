@@ -6,20 +6,10 @@ frontend:
         - npm ci
     build:
       commands:
-        # Amplify env vars are available as shell environment variables.
-        # Explicitly export them so Next.js can inline server-only values
-        # into the SSR bundle at build time.
-        - export MONGODB_URI
-        - export MONGODB_DB
-        - export ADMIN_SECRET
-        - export CRON_SECRET
-        - export RAPIDAPI_KEY
-        - export SARVAM_API_KEY
-        - export OPENAI_API_KEY
-        - export NEXT_PUBLIC_APP_URL
-        - export NEXT_PUBLIC_SUPABASE_URL
-        - export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-        - export SUPABASE_SERVICE_ROLE_KEY
+        # Write Amplify console env vars into .env.production so Next.js
+        # can read them at both build time and SSR Lambda runtime.
+        # Only variable names appear here — values come from the Amplify console.
+        - env | grep -e MONGODB_URI -e MONGODB_DB -e ADMIN_SECRET -e CRON_SECRET -e RAPIDAPI_KEY -e SARVAM_API_KEY -e OPENAI_API_KEY -e NEXT_PUBLIC_APP_URL -e NEXT_PUBLIC_SUPABASE_URL -e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY -e SUPABASE_SERVICE_ROLE_KEY >> .env.production
         - npm run build
   artifacts:
     baseDirectory: .next
