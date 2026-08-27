@@ -29,13 +29,10 @@ const FEEDS: FeedConfig[] = [
     tags: ["remote", "tech"],
     platform: "Other",
   },
-  {
-    name: "Hacker News Who's Hiring",
-    url: "https://hnrss.org/newest?q=Who+is+hiring&points=100",
-    category: "Job",
-    tags: ["hacker-news", "startup"],
-    platform: "Other",
-  },
+  // NOTE: Hacker News "Who is Hiring" is intentionally excluded here.
+  // The dedicated hackernews.ts adapter parses individual job comments
+  // from the thread. Ingesting the megathread itself as a single RSS
+  // item would duplicate and misclassify the content.
   {
     name: "AngelList/Wellfound Jobs",
     url: "https://wellfound.com/job_search.json",
@@ -194,23 +191,96 @@ export class RssFeedSource implements OpportunitySource {
           // Extract description
           const description = (item.contentSnippet || item.content || "").replace(/<[^>]+>/g, "").substring(0, 2000);
 
-          // Check if it looks like an opportunity
+          // ── Opportunity signal scoring ───────────────────────────────
+          // Require strong evidence that this item is an actionable opportunity,
+          // not merely editorial content that happens to mention opportunity words.
           const combined = `${title} ${description}`.toLowerCase();
-          const isHiring = combined.includes("hiring") || combined.includes("looking for") || combined.includes("we're seeking");
-          const isEvent = combined.includes("event") || combined.includes("conference") || combined.includes("meetup") || combined.includes("workshop");
-          const isInternship = combined.includes("intern") || combined.includes("internship");
-          const isFellowship = combined.includes("fellow") || combined.includes("fellowship") || combined.includes("scholarship");
 
-          // Skip pure blog posts that aren't about opportunities
-          if (!isHiring && !isEvent && !isInternship && !isFellowship &&
-              feed.keywords && feed.keywords.length > 0) {
-            // If keyword filter matched but it's not clearly an opportunity, still include
+          // Positive signals: evidence of a real, actionable opportunity
+          let opportunityScore = 0;
+
+          // Explicit application/registration action words
+          const hasApplicationAction = /\b(apply|application|register|registration|submit|submitting|enroll|enrolment)\b/.test(combined);
+          if (hasApplicationAction) opportunityScore += 2;
+
+          // Application/registration URL patterns in the text
+          const hasApplicationUrl = /(apply|register|signup|sign-up|application|apply\.now|register\.now|forms\.gle|typeform|airtable|lever\.co|greenhouse\.io|workday\.com|ashbyhq\.com)/i.test(description);
+          if (hasApplicationUrl) opportunityScore += 2;
+
+          // Deadline / closing date evidence
+          const hasDeadline = /\b(deadline|closing date|due date|last date|apply by|submit by|expires?|ends? on|ends? at|applications? (close|close|due))\b/.test(combined);
+          if (hasDeadline) opportunityScore += 2;
+
+          // Explicit invitation to participate
+          const hasInvitation = /\b(now accepting|we're hiring|we are hiring|open for|looking for|seeking|accepting applications|accepting candidates|join (us|our|the)|become a|opportunity for)\b/.test(combined);
+          if (hasInvitation) opportunityScore += 1;
+
+          // Program/position announcement with eligibility
+          const hasEligibility = /\b(eligible|eligibility|requirements|qualifications|who can apply|who should apply|candidates?|applicants?)\b/.test(combined);
+          if (hasEligibility) opportunityScore += 1;
+
+          // Hiring-specific strong signals (not just the word "hiring" in a news article)
+          const hasHiringAction = /\b(hiring|we're hiring|join our team|open positions?|job openings?|career|vacancy|vacancies)\b/.test(combined);
+          if (hasHiringAction) opportunityScore += 1;
+
+          // Negative signals: editorial / news / commentary / analysis
+          let editorialPenalty = 0;
+
+          // News reporting language
+          if (/\b(report|reports|reported|according to|analysis|analyst|research|study shows|survey|data shows|findings|insights|trend|trends|landscape|ecosystem|roundup|recap|overview|digest|weekly|monthly|daily)\b/.test(combined)) {
+            editorialPenalty += 2;
           }
 
+          // Commentary / opinion / announcement that isn't an opportunity
+          if (/\b(opinion|editorial|commentary|perspective|thoughts on|my take|i think|i believe|we think|in my experience|lessons? learned|reflections?)\b/.test(combined)) {
+            editorialPenalty += 3;
+          }
+
+          // Funding announcement (reporting on someone else's funding, not offering a grant)
+          if (/\b(raised|raises|funding round|series [a-z]|valuation|investor|venture capital|backed by|announced.*funding|funding.*announced)\b/.test(combined)) {
+            editorialPenalty += 3;
+          }
+
+          // Tutorial / how-to / educational content
+          if (/\b(tutorial|how to|how-to|guide|step by step|walkthrough|getting started|introduction to|beginner|101|explained|deep dive|behind the scenes)\b/.test(combined)) {
+            editorialPenalty += 3;
+          }
+
+          // Personnel / company news
+          if (/\b(promoted|appointed|hired|new (ceo|cto|cfo|vp|director|head|lead)|joins? as|leaves?|departure|personnel)\b/.test(combined)) {
+            editorialPenalty += 3;
+          }
+
+          const netScore = opportunityScore - editorialPenalty;
+
+          // For editorial/news feeds (those with keyword filters), require a
+          // positive net score to avoid publishing news as opportunities.
+          const isEditorialFeed = !!(feed.keywords && feed.keywords.length > 0);
+          const MIN_SCORE = isEditorialFeed ? 2 : 0;
+
+          if (netScore < MIN_SCORE) {
+            // Skip — this item lacks sufficient evidence of being an actionable opportunity
+            continue;
+          }
+
+          // Determine category from strong signals
+          const isInternship = /\b(intern|internship|co-?op)\b/.test(combined) && hasApplicationAction;
+          const isFellowship = /\b(fellow|fellowship|scholarship)\b/.test(combined) && (hasApplicationAction || hasDeadline);
+          const isGrant = /\b(grant|grants|scholarship|funding opportunity|financial support|stipend|fellowship)\b/.test(combined) && (hasApplicationAction || hasDeadline);
+          const isHackathon = /\b(hackathon|hack|competition|contest)\b/.test(combined) && hasInvitation;
+          const isEvent = /\b(conference|meetup|workshop|webinar|summit)\b/.test(combined) && (hasApplicationAction || hasInvitation);
+          const isHiring = hasHiringAction && !isInternship;
+
+          // Only assign opportunity categories when strong signals support it;
+          // otherwise fall back to the feed's declared category (which for
+          // editorial feeds is now gated by the score check above).
           const category: Category = isInternship ? "Internship" :
             isFellowship ? "Fellowship" :
+            isGrant ? "Grant" :
+            isHackathon ? "Hackathon" :
             isEvent ? "Event" :
-            isHiring ? "Job" : feed.category;
+            isHiring ? "Job" :
+            feed.category;
 
           results.push({
             title,

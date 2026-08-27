@@ -109,9 +109,36 @@ function LoginForm() {
   );
 }
 
+function LoginSkeleton() {
+  return (
+    <div style={{ minHeight: "70vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: "100%", maxWidth: 380 }}>
+        <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+          <div style={{ width: 120, height: 14, borderRadius: 4, background: "var(--line)", margin: "0 auto 0.75rem" }} />
+          <div style={{ width: 220, height: 28, borderRadius: 6, background: "var(--line)", margin: "0 auto" }} />
+        </div>
+        <div
+          className="surface"
+          style={{ padding: "2rem", display: "flex", flexDirection: "column", gap: "1.1rem", border: "1px solid var(--line)", borderRadius: 16, background: "var(--card)" }}
+        >
+          <div>
+            <div style={{ width: 48, height: 12, borderRadius: 4, background: "var(--line)", marginBottom: 6 }} />
+            <div style={{ width: "100%", height: 42, borderRadius: 12, background: "var(--paper)", border: "1px solid var(--line)" }} />
+          </div>
+          <div>
+            <div style={{ width: 64, height: 12, borderRadius: 4, background: "var(--line)", marginBottom: 6 }} />
+            <div style={{ width: "100%", height: 42, borderRadius: 12, background: "var(--paper)", border: "1px solid var(--line)" }} />
+          </div>
+          <div style={{ width: "100%", height: 46, borderRadius: 10, background: "var(--ink-soft)" }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LoginPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<LoginSkeleton />}>
       <LoginForm />
     </Suspense>
   );
