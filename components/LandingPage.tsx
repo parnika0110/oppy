@@ -1,5 +1,7 @@
 import OpportunityCard from "@/components/OpportunityCard";
 import DiscoveryWizard from "@/components/DiscoveryWizard";
+import OppyLogoWrapper from "@/components/OppyLogoWrapper";
+import SearchBar from "@/components/SearchBar";
 import { OpportunityDocument } from "@/types/opportunity";
 
 const CATEGORIES = [
@@ -13,14 +15,7 @@ const CATEGORIES = [
   "Grants",
 ];
 
-// ── Opportunity wall cards (visual design elements, not real data) ─────
-const WALL_CARDS = [
-  { cat: "Hackathon", title: "Build something people use.", meta: "Bengaluru · Sep 14", bg: "var(--lavender)", color: "#4A3F8A" },
-  { cat: "Internship", title: "Software Engineering Intern", meta: "Remote · Closing soon", bg: "var(--peach)", color: "#7A4A1A" },
-  { cat: "Event", title: "AI × Builders", meta: "This weekend", bg: "#F0E8FF", color: "#5B3D8A" },
-  { cat: "Fellowship", title: "Open Source Mentorship", meta: "Rolling · Global", bg: "var(--sage)", color: "#2E5A28" },
-  { cat: "Scholarship", title: "Undergraduate Research Grant", meta: "Deadline Oct 3", bg: "var(--blue)", color: "#1F4A62" },
-];
+
 
 export default function LandingPage({ liveOpps, activeCount }: { liveOpps: OpportunityDocument[]; activeCount: number }) {
   const heroOppCount = activeCount;
@@ -65,20 +60,22 @@ export default function LandingPage({ liveOpps, activeCount }: { liveOpps: Oppor
             )}
           </div>
 
-          {/* Right: editorial opportunity wall */}
-          <div className="lp-hero-wall" aria-hidden="true">
-            {WALL_CARDS.map((card, i) => (
-              <div
-                key={i}
-                className={`lp-wall-card lp-wall-${i}`}
-                style={{ background: card.bg, color: card.color }}
-              >
-                <span className="lp-wall-cat">{card.cat}</span>
-                <span className="lp-wall-title">{card.title}</span>
-                <span className="lp-wall-meta">{card.meta}</span>
-              </div>
-            ))}
+          {/* Right: 3D opportunity network logo */}
+          <div className="lp-hero-logo">
+            <OppyLogoWrapper
+              style={{ width: "100%", height: "100%" }}
+            />
           </div>
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════════════════════════
+          QUICK SEARCH
+          ════════════════════════════════════════════════════════════════ */}
+      <section className="lp-section" style={{ paddingTop: 0 }}>
+        <div style={{ maxWidth: 560, margin: '0 auto' }}>
+          <p className="eyebrow" style={{ textAlign: 'center', marginBottom: '0.75rem' }}>Quick search</p>
+          <SearchBar />
         </div>
       </section>
 

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { OpportunityDocument, Category } from "@/types/opportunity";
 import SaveButton from "./SaveButton";
+import ShareButton from "./ShareButton";
+import DeadlineCountdown from "./DeadlineCountdown";
 import { getBestCtaUrl, isPlatformHomepage } from "@/lib/url-utils";
 
 // ── Category colours matching globals.css tokens ─────────────────────────
@@ -159,22 +161,27 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
       className="relative surface lift flex flex-col overflow-hidden"
       style={{ padding: 0 }}
     >
-      {/* Save button — absolute positioned */}
-      <div className="absolute right-3.5 top-3.5 z-10">
+      {/* Save + Share buttons — absolute positioned */}
+      <div className="absolute right-3.5 top-3.5 z-10 flex items-center gap-1">
+        <ShareButton
+          title={opportunity.title}
+          url={`https://oppy.dev/opportunity/${opportunity._id}`}
+          organization={opportunity.organization}
+        />
         <SaveButton id={opportunity._id} />
       </div>
 
       <Link href={`/opportunity/${opportunity._id}`} className="group flex flex-col h-full p-5" target="_self">
         {/* ── Image or avatar ──── */}
         {showImage ? (
-          <div className="relative w-full rounded-xl mb-4 overflow-hidden" style={{ aspectRatio: '16/9' }}>
+          <div className="relative w-full rounded-xl mb-4 overflow-hidden" style={{ aspectRatio: '16/9', background: 'var(--card)' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={hasPrimaryImage ? opportunity.imageUrl! : ogImage!}
               alt={opportunity.imageAlt || `${opportunity.title} cover`}
               loading="lazy"
-              className="w-full h-full object-cover bg-[var(--card)]"
-              style={{ minHeight: '100%' }}
+              className="w-full h-full object-contain"
+              style={{ maxHeight: '100%' }}
               onError={() => {
                 if (hasPrimaryImage) setImgError(true);
                 else setOgFailed(true);
@@ -209,6 +216,25 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
               NEW
             </span>
           )}
+          {/* Deadline countdown */}
+          <DeadlineCountdown
+            deadline={opportunity.applicationDeadline || opportunity.deadline}
+            deadlineKind={opportunity.deadlineKind}
+            compact
+          />
+          {/* Quality score */}
+          {(opportunity as any).qualityScore && (opportunity as any).qualityScore >= 80 && (
+            <span
+              className="inline-block text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full"
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                background: "#D1FAE5",
+                color: "#065F46",
+              }}
+            >
+              ✓ Verified
+            </span>
+          )}
           {/* Urgency badge */}
           {urgency && (
             <span
@@ -222,7 +248,14 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
 
         {/* ── Org + Title ──── */}
         <p className="eyebrow truncate" style={{ fontSize: "0.68rem" }}>
-          {opportunity.organization}
+          <a
+            href={`/org/${encodeURIComponent(opportunity.organization)}`}
+            className="hover:underline"
+            style={{ color: "var(--lavender-deep)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {opportunity.organization}
+          </a>
         </p>
         <h3
           className="mt-0.5 font-display font-semibold leading-snug line-clamp-2 group-hover:text-[var(--lavender-deep)] transition-colors"

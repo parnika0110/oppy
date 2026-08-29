@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import SaveButton from "@/components/SaveButton";
 import ViewTracker from "@/components/ViewTracker";
+import SimilarOpportunities from "@/components/SimilarOpportunities";
 import { DetailImage } from "@/components/DetailImage";
+import DeadlineCountdown from "@/components/DeadlineCountdown";
+import ShareButton from "@/components/ShareButton";
 import { OpportunityDocument } from "@/types/opportunity";
 import { getBestCtaUrl, getCtaLabel } from "@/lib/url-utils";
 
@@ -334,6 +338,9 @@ export default async function OpportunityDetailsPage({
           {isClosed ? "Visit official source →" : ctaLabel}
         </a>
       )}
+
+      {/* ── Similar Opportunities ──────────────────────────────── */}
+      <SimilarOpportunities opportunityId={opp._id} />
     </div>
   );
 }

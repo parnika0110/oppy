@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/AuthContext";
 import Nav from "@/components/Nav";
+import { OppyMark } from "@/components/OppyLogo";
 
 export const metadata: Metadata = {
   title: "OPPY — Find opportunities before everyone else",
@@ -45,10 +46,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {/* Wordmark */}
             <a
               href="/"
-              className="font-display text-xl font-semibold tracking-tight"
+              className="flex items-center gap-1.5"
               style={{ color: "var(--ink)" }}
             >
-              OPPY<span style={{ color: "var(--lavender-deep)" }}>.</span>
+              <OppyMark size={28} />
+              <span className="font-display text-xl font-semibold tracking-tight">
+                PPY
+              </span>
             </a>
 
             <Nav />
@@ -67,8 +71,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           <div className="max-w-6xl mx-auto px-5 sm:px-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <p className="font-display font-semibold" style={{ color: "var(--ink)" }}>
-                OPPY<span style={{ color: "var(--lavender-deep)" }}>.</span>
+              <p className="font-display font-semibold flex items-center gap-1" style={{ color: "var(--ink)" }}>
+                <OppyMark size={20} />
+                <span>PPY</span>
               </p>
               <p className="eyebrow mt-1">Find opportunities before everyone else</p>
             </div>
