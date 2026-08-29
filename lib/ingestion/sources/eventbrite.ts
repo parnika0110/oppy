@@ -12,8 +12,10 @@ const SEARCH_PAGES = [
   "https://www.eventbrite.com/d/online/tech-events/",
   "https://www.eventbrite.com/d/online/hackathon/",
   "https://www.eventbrite.com/d/online/career-development/",
-  "https://www.eventbrite.com/d/online/workshop/",
-  "https://www.eventbrite.com/d/online/startup/",
+  // NOTE: /workshop/ and /startup/ are excluded because they return
+  // non-tech events (mental health workshops, drawing classes, budget
+  // workshops, business networking circles) that are not relevant
+  // opportunities for our users.
 ];
 
 function isRealEventUrl(url: string): boolean {

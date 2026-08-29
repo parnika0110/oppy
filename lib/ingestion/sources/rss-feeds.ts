@@ -83,13 +83,11 @@ const FEEDS: FeedConfig[] = [
     platform: "Other",
     keywords: ["hackathon", "internship", "fellowship", "opportunity", "hiring", "program"],
   },
-  {
-    name: "Hacker News Best",
-    url: "https://hnrss.org/best?q=hiring+OR+internship+OR+fellowship+OR+hackathon+OR+opportunity",
-    category: "Job",
-    tags: ["hacker-news"],
-    platform: "Other",
-  },
+  // NOTE: Hacker News is intentionally excluded from RSS.
+  // The dedicated hackernews.ts adapter parses individual job comments
+  // from the "Who is Hiring?" thread via the HN Algolia API.
+  // A generic HN RSS feed (hnrss.org/best) would ingest the megathread
+  // itself and general hiring posts that are not actionable opportunities.
 
   // ── Events ──────────────────────────────────────────────────────────────
   {

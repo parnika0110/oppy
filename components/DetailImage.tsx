@@ -53,7 +53,8 @@ export function DetailImage({ opp }: { opp: OpportunityDocument }) {
           <img
             src={hasPrimaryImage ? opp.imageUrl! : ogImage!}
             alt={opp.imageAlt || `${opp.title} cover`}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
+            style={{ background: 'var(--card)' }}
             onError={() => {
               if (hasPrimaryImage) setImgError(true);
               else setOgFailed(true);

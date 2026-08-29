@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import OpportunityCard from "@/components/OpportunityCard";
+import ApplicationTracker from "@/components/ApplicationTracker";
 import { useAuth } from "@/lib/AuthContext";
 import { OpportunityDocument } from "@/types/opportunity";
 
@@ -98,7 +99,12 @@ export default function SavedPage() {
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {items.map((opp) => (
-              <OpportunityCard key={opp._id} opportunity={opp} />
+              <div key={opp._id} className="relative">
+                <OpportunityCard opportunity={opp} />
+                <div className="mt-2 px-2">
+                  <ApplicationTracker opportunityId={opp._id} />
+                </div>
+              </div>
             ))}
           </div>
         </>
