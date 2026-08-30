@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyPassword, createSession, SESSION_COOKIE } from "@/lib/userAuth";
 import { getUsersCollection, ensureUserIndexes } from "@/lib/mongodb";
+import { checkRateLimit, getRateLimitKey } from "@/lib/rate-limit";
 
 /**
  * POST /api/auth/login
@@ -12,6 +13,16 @@ export async function POST(request: NextRequest) {
 
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
+    }
+
+    // Rate limit: max 10 login attempts per 15 minutes per IP
+    const rlKey = getRateLimitKey(request, "login");
+    const rl = checkRateLimit(rlKey, 10, 15 * 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many login attempts. Please try again later." },
+        { status: 429 }
+      );
     }
 
     await ensureUserIndexes();

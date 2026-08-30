@@ -29,6 +29,7 @@ import { runDiscoveryPipeline } from "@/lib/discovery";
 import { refreshOpportunityLifecycle } from "@/lib/lifecycle";
 import { scoreOpportunity } from "@/lib/discovery/rank";
 import { fetchOpenGraphImage, resolveImageUrl } from "@/lib/images";
+import { cleanIngestedText } from "@/lib/html-entities";
 
 // ── Source refresh intervals (in milliseconds) ──────────────────────────────
 // Used by admin dashboard to show freshness and by ingestion scheduling.
@@ -211,12 +212,12 @@ export async function runIngestionPipeline(sourceName?: string): Promise<Pipelin
           const extended = raw as any;
 
           const doc: Record<string, unknown> = {
-            title: raw.title,
-            organization: raw.organization,
+            title: cleanIngestedText(raw.title),
+            organization: cleanIngestedText(raw.organization),
             category: raw.category,
-            location: raw.location,
-            tags: raw.tags || [],
-            description: raw.description,
+            location: cleanIngestedText(raw.location),
+            tags: (raw.tags || []).map(cleanIngestedText).filter(Boolean),
+            description: cleanIngestedText(raw.description),
             applicationLink: raw.applicationLink,
             imageUrl: raw.imageUrl || null,
             imageAlt: raw.imageUrl ? `${raw.title} image` : null,
@@ -229,7 +230,7 @@ export async function runIngestionPipeline(sourceName?: string): Promise<Pipelin
             registrationDeadline: extended.registrationDeadline ? new Date(extended.registrationDeadline) : null,
             applicationDeadline: raw.deadline ? new Date(raw.deadline as string | number) : null,
             // Source tracking
-            source: raw.source || source.name,
+            source: cleanIngestedText(raw.source) || source.name,
             sourceUrl: raw.sourceUrl || raw.applicationLink,
             sourcePlatform: raw.sourcePlatform,
             sourceId: raw.sourceId || null,

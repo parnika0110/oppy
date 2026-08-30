@@ -2,11 +2,15 @@
 
 import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
-import { OpportunityDocument, Category } from "@/types/opportunity";
+import { OpportunityDocument } from "@/types/opportunity";
 import SaveButton from "./SaveButton";
 import ShareButton from "./ShareButton";
 import DeadlineCountdown from "./DeadlineCountdown";
-import { getBestCtaUrl, isPlatformHomepage } from "@/lib/url-utils";
+import { getBestCtaUrl } from "@/lib/url-utils";
+import { decodeHtmlEntities } from "@/lib/html-entities";
+
+// Display-time decoder — ensures existing DB records with encoded entities render cleanly
+const d = (text: string | null | undefined): string => (text ? decodeHtmlEntities(text) : "");
 
 // ── Category colours matching globals.css tokens ─────────────────────────
 const CATEGORY_STYLES: Record<string, { bg: string; color: string; label: string }> = {
@@ -204,7 +208,7 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
           {/* Source badge */}
           {sourcePlatform && (
             <span className="eyebrow" style={{ fontSize: "0.65rem" }}>
-              via {sourcePlatform}
+              via {d(sourcePlatform)}
             </span>
           )}
           {/* NEW badge */}
@@ -254,20 +258,20 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
             style={{ color: "var(--lavender-deep)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {opportunity.organization}
+            {d(opportunity.organization)}
           </a>
         </p>
         <h3
           className="mt-0.5 font-display font-semibold leading-snug line-clamp-2 group-hover:text-[var(--lavender-deep)] transition-colors"
           style={{ fontSize: "1rem", color: "var(--ink)" }}
         >
-          {opportunity.title}
+          {d(opportunity.title)}
         </h3>
 
         {/* ── Location + mode ──── */}
         {(opportunity.location || opportunity.isRemote) && (
           <p className="mt-1.5 text-xs" style={{ color: "var(--ink-soft)" }}>
-            {opportunity.isRemote ? "🌐 Remote" : `📍 ${opportunity.location}`}
+            {opportunity.isRemote ? "🌐 Remote" : `📍 ${d(opportunity.location)}`}
           </p>
         )}
 
@@ -297,7 +301,7 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
           <div className="mt-3 flex flex-wrap gap-1.5">
             {opportunity.tags.slice(0, 3).map((tag) => (
               <span key={tag} className="chip" style={{ fontSize: "0.65rem", padding: "0.18rem 0.55rem" }}>
-                {tag}
+                {d(tag)}
               </span>
             ))}
           </div>

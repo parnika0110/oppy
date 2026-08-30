@@ -130,3 +130,106 @@ export async function getCurrentUser(request?: NextRequest | Request): Promise<S
 }
 
 export { toSafeUser };
+
+// ── Password Reset ──────────────────────────────────────────────────────
+
+import { getPasswordResetsCollection } from "@/lib/mongodb";
+
+const RESET_CODE_TTL_MS = 1000 * 60 * 15; // 15 minutes
+
+export interface PasswordResetDocument {
+  email: string;
+  code: string; // 6-digit numeric code
+  createdAt: Date;
+  expiresAt: Date;
+  used: boolean;
+}
+
+/**
+ * Generate a 6-digit numeric reset code and store it in the DB.
+ * Returns the code (to be sent to the user via email in production).
+ */
+export async function generateResetCode(email: string): Promise<string | null> {
+  const users = await getUsersCollection();
+  const user = await users.findOne({ email: email.trim().toLowerCase() });
+
+  // Return null for non-existent users (no code stored, no email sent)
+  // but the API layer returns the same 200 response either way,
+  // so the caller cannot distinguish between existing and non-existing emails.
+  if (!user) return null;
+
+  const code = String(crypto.randomInt(100000, 1000000)); // 6-digit cryptographically secure code
+  const now = new Date();
+  const resets = await getPasswordResetsCollection();
+
+  // Invalidate any previous unused codes for this email
+  await resets.updateMany(
+    { email: user.email, used: false },
+    { $set: { used: true } }
+  );
+
+  await resets.insertOne({
+    email: user.email,
+    code,
+    createdAt: now,
+    expiresAt: new Date(now.getTime() + RESET_CODE_TTL_MS),
+    used: false,
+  });
+
+  return code;
+}
+
+/**
+ * Verify a reset code for the given email.
+ * Returns true if valid, false otherwise.
+ */
+export async function verifyResetCode(email: string, code: string): Promise<boolean> {
+  const resets = await getPasswordResetsCollection();
+  const record = await resets.findOne({
+    email: email.trim().toLowerCase(),
+    code: code.trim(),
+    used: false,
+    expiresAt: { $gt: new Date() },
+  });
+
+  return !!record;
+}
+
+/**
+ * Reset a user's password using a verified reset code.
+ * Marks the code as used to prevent reuse.
+ * Returns true on success, false if the code is invalid/expired.
+ */
+export async function resetPasswordWithCode(
+  email: string,
+  code: string,
+  newPassword: string
+): Promise<boolean> {
+  const resets = await getPasswordResetsCollection();
+  const record = await resets.findOne({
+    email: email.trim().toLowerCase(),
+    code: code.trim(),
+    used: false,
+    expiresAt: { $gt: new Date() },
+  });
+
+  if (!record) return false;
+
+  // Hash the new password
+  const passwordHash = await hashPassword(newPassword);
+  const users = await getUsersCollection();
+  const result = await users.updateOne(
+    { email: email.trim().toLowerCase() },
+    { $set: { passwordHash, updatedAt: new Date() } }
+  );
+
+  if (result.matchedCount === 0) return false;
+
+  // Mark code as used
+  await resets.updateOne(
+    { _id: record._id },
+    { $set: { used: true } }
+  );
+
+  return true;
+}

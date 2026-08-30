@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const CATEGORY_OPTIONS = [
@@ -54,6 +54,11 @@ export default function DiscoveryWizard() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Ensure no error is visible on initial mount — only show after a real attempt
+  useEffect(() => {
+    setAiError(null);
+  }, []);
 
   const toggleCategory = (cat: string) => {
     setSelectedCategories((prev) =>
@@ -140,19 +145,33 @@ export default function DiscoveryWizard() {
   };
 
   const handleVoiceInput = async () => {
+    setAiError(null); // Clear any previous error before attempting
+
     if (!navigator.mediaDevices?.getUserMedia) {
-      setAiError("Voice input is not supported in this browser.");
+      setAiError("Voice input is not supported in this browser. Please type your query.");
       return;
     }
 
+    let stream: MediaStream | null = null;
+    let mediaRecorder: MediaRecorder | null = null;
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
       const chunks: Blob[] = [];
 
       mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
       mediaRecorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
+        // Stop all tracks to release the microphone
+        stream?.getTracks().forEach((t) => t.stop());
+
+        // If no audio was captured, don't send
+        if (chunks.length === 0) {
+          setAiError("No audio recorded. Please try again or type your query.");
+          setAiLoading(false);
+          return;
+        }
+
         const audioBlob = new Blob(chunks, { type: "audio/webm" });
 
         setAiLoading(true);
@@ -165,23 +184,48 @@ export default function DiscoveryWizard() {
             body: formData,
           });
 
-          if (res.ok) {
-            const data = await res.json();
+          const data = await res.json();
+
+          if (res.ok && data.transcript) {
             setAiQuery(data.transcript);
+            setAiError(null); // Clear any stale error on success
+          } else if (data.code === "SERVICE_UNAVAILABLE") {
+            setAiError("Voice input is not available on this server. Please type your query.");
+          } else if (data.code === "TRANSCRIPTION_FAILED") {
+            setAiError("Could not understand the audio. Please try again or type instead.");
           } else {
-            setAiError("Transcription unavailable. Please type instead.");
+            setAiError(data.error || "Transcription failed. Please type instead.");
           }
         } catch {
-          setAiError("Transcription failed.");
+          setAiError("Could not connect to the transcription service. Please type your query.");
         } finally {
           setAiLoading(false);
         }
       };
 
+      // Handle recorder errors
+      mediaRecorder.onerror = () => {
+        stream?.getTracks().forEach((t) => t.stop());
+        setAiError("Recording failed. Please try again or type your query.");
+        setAiLoading(false);
+      };
+
       mediaRecorder.start();
-      setTimeout(() => mediaRecorder.stop(), 10000); // Max 10 seconds
-    } catch {
-      setAiError("Microphone access denied. Please type your query.");
+      setTimeout(() => {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+        }
+      }, 10000); // Max 10 seconds
+    } catch (err) {
+      // Release microphone if we got it
+      stream?.getTracks().forEach((t) => t.stop());
+
+      // Distinguish permission denied from other errors
+      if (err instanceof DOMException && err.name === "NotAllowedError") {
+        setAiError("Microphone permission denied. Please allow microphone access or type your query.");
+      } else {
+        setAiError("Could not access microphone. Please type your query.");
+      }
     }
   };
 

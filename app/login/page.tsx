@@ -64,7 +64,16 @@ function LoginForm() {
             />
           </div>
           <div>
-            <label className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Password</label>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <label className="eyebrow">Password</label>
+              <a
+                href="/forgot-password"
+                className="underline-hover"
+                style={{ fontSize: "0.75rem", color: "var(--lavender-deep)" }}
+              >
+                Forgot password?
+              </a>
+            </div>
             <input
               type="password"
               required

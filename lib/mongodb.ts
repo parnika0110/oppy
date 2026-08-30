@@ -110,6 +110,11 @@ export async function getSavedOpportunitiesCollection() {
   return db.collection("savedOpportunities");
 }
 
+export async function getPasswordResetsCollection() {
+  const db = await getDb();
+  return db.collection("passwordResets");
+}
+
 /**
  * Ensure the indexes PHASE 18 of the spec calls for exist. Safe to call
  * repeatedly — createIndex is a no-op if the index already exists with the
@@ -127,6 +132,8 @@ export async function ensureUserIndexes() {
     db.collection("sessions").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.collection("savedOpportunities").createIndex({ userId: 1, opportunityId: 1 }, { unique: true }),
     db.collection("recentlyViewed").createIndex({ userId: 1, viewedAt: -1 }),
+    db.collection("passwordResets").createIndex({ email: 1, used: 1, expiresAt: 1 }),
+    db.collection("passwordResets").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
   ]);
   indexesEnsured = true;
 }
