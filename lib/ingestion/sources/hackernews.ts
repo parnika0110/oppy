@@ -1,4 +1,5 @@
 import { RawOpportunity, OpportunitySource, Category } from "@/types/opportunity";
+import { decodeHtmlEntities } from "@/lib/html-entities";
 
 /**
  * Hacker News "Who is Hiring?" Source Adapter
@@ -202,15 +203,12 @@ export class HackerNewsSource implements OpportunitySource {
         const comment = child;
         if (!comment.text || comment.dead || comment.deleted) continue;
 
-        // Strip HTML tags
-        const cleanText = comment.text
-          .replace(/<[^>]+>/g, " ")
-          .replace(/&amp;/g, "&")
-          .replace(/&lt;/g, "<")
-          .replace(/&gt;/g, ">")
-          .replace(/&#x27;/g, "'")
-          .replace(/&quot;/g, '"')
-          .trim();
+        // Strip HTML tags, then decode all remaining HTML entities
+        const cleanText = decodeHtmlEntities(
+          comment.text
+            .replace(/<[^>]+>/g, " ")
+            .trim()
+        );
 
         const parsed = parseComment(cleanText, hiringThread.title);
         if (!parsed) continue;

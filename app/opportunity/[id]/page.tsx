@@ -1,13 +1,14 @@
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
 import SaveButton from "@/components/SaveButton";
 import ViewTracker from "@/components/ViewTracker";
 import SimilarOpportunities from "@/components/SimilarOpportunities";
 import { DetailImage } from "@/components/DetailImage";
-import DeadlineCountdown from "@/components/DeadlineCountdown";
-import ShareButton from "@/components/ShareButton";
 import { OpportunityDocument } from "@/types/opportunity";
-import { getBestCtaUrl, getCtaLabel } from "@/lib/url-utils";
+import { getBestCtaUrl } from "@/lib/url-utils";
+import { decodeHtmlEntities } from "@/lib/html-entities";
+
+// Display-time decoder — ensures existing DB records with encoded entities render cleanly
+const d = (text: string | null | undefined): string => (text ? decodeHtmlEntities(text) : "");
 
 // ── Design token helpers ──────────────────────────────────────────────────
 const CATEGORY_STYLES: Record<string, { bg: string; color: string }> = {
@@ -17,15 +18,6 @@ const CATEGORY_STYLES: Record<string, { bg: string; color: string }> = {
   Scholarship: { bg: "#ACCEDF", color: "#1F4A62" },
   Grant:       { bg: "#E8D5C4", color: "#6B3F1F" },
   Event:       { bg: "#F0E8FF", color: "#5B3D8A" },
-};
-
-const AVATAR_GRADIENTS: Record<string, string> = {
-  Hackathon:   "linear-gradient(135deg, #D2C9EE 0%, #8B7DC7 100%)",
-  Internship:  "linear-gradient(135deg, #F0C6A0 0%, #C98A4B 100%)",
-  Fellowship:  "linear-gradient(135deg, #B3CDA8 0%, #6E9463 100%)",
-  Scholarship: "linear-gradient(135deg, #ACCEDF 0%, #5D8BA3 100%)",
-  Grant:       "linear-gradient(135deg, #E8D5C4 0%, #B8946C 100%)",
-  Event:       "linear-gradient(135deg, #E8D0FF 0%, #9B6CC7 100%)",
 };
 
 function fmtDate(iso: string | Date | null | undefined) {
@@ -79,7 +71,6 @@ export default async function OpportunityDetailsPage({
   if (!opp) notFound();
 
   const cat = CATEGORY_STYLES[opp.category] ?? CATEGORY_STYLES.Event;
-  const gradient = AVATAR_GRADIENTS[opp.category] ?? AVATAR_GRADIENTS.Event;
   const urgency = getUrgency(opp.deadline, opp.deadlineKind);
   const isClosed = opp.lifecycleStatus === "closed" || opp.lifecycleStatus === "archived";
   const ctaUrl = getBestCtaUrl(opp);
@@ -173,18 +164,18 @@ export default async function OpportunityDetailsPage({
                 <span className="eyebrow" style={{ fontSize: "0.65rem" }}>via {sourcePlatform}</span>
               )}
             </div>
-            <p className="eyebrow" style={{ fontSize: "0.7rem" }}>{opp.organization}</p>
+            <p className="eyebrow" style={{ fontSize: "0.7rem" }}>{d(opp.organization)}</p>
             <h1
               className="mt-1 font-display font-semibold leading-tight"
               style={{ fontSize: "clamp(1.35rem, 3vw, 1.75rem)", color: "var(--ink)" }}
             >
-              {opp.title}
+              {d(opp.title)}
             </h1>
           </div>
 
           {(opp.location || (opp as any).isRemote) && (
             <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
-              {(opp as any).isRemote ? "🌐 Remote / Online" : `📍 ${opp.location}`}
+              {(opp as any).isRemote ? "🌐 Remote / Online" : `📍 ${d(opp.location)}`}
             </p>
           )}
 
@@ -231,7 +222,7 @@ export default async function OpportunityDetailsPage({
           {opp.tags && opp.tags.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {opp.tags.map((tag) => (
-                <span key={tag} className="chip">{tag}</span>
+                <span key={tag} className="chip">{d(tag)}</span>
               ))}
             </div>
           )}
@@ -246,13 +237,13 @@ export default async function OpportunityDetailsPage({
         >
           <p className="eyebrow" style={{ color: "#8B7DC7" }}>✦ AI Summary</p>
           <p className="text-sm leading-relaxed" style={{ color: "var(--ink-soft)" }}>
-            {opp.aiSummary.summary}
+            {d(opp.aiSummary.summary)}
           </p>
           {(opp.aiSummary.eligibility?.length ?? 0) > 0 && (
             <div>
               <p className="eyebrow mb-2">Eligibility</p>
               <ul className="text-sm space-y-1 list-disc list-inside" style={{ color: "var(--ink-soft)" }}>
-                {opp.aiSummary.eligibility.map((e, i) => <li key={i}>{e}</li>)}
+                {opp.aiSummary.eligibility.map((e, i) => <li key={i}>{d(e)}</li>)}
               </ul>
             </div>
           )}
@@ -260,7 +251,7 @@ export default async function OpportunityDetailsPage({
             <div>
               <p className="eyebrow mb-2">Key Dates</p>
               <ul className="text-sm space-y-1 list-disc list-inside" style={{ color: "var(--ink-soft)" }}>
-                {opp.aiSummary.keyDates.map((d, i) => <li key={i}>{d}</li>)}
+                {opp.aiSummary.keyDates.map((kd, i) => <li key={i}>{d(kd)}</li>)}
               </ul>
             </div>
           )}
@@ -268,7 +259,7 @@ export default async function OpportunityDetailsPage({
             <div>
               <p className="eyebrow mb-2">Key Takeaways</p>
               <ul className="text-sm space-y-1 list-disc list-inside" style={{ color: "var(--ink-soft)" }}>
-                {opp.aiSummary.takeaways.map((t, i) => <li key={i}>{t}</li>)}
+                {opp.aiSummary.takeaways.map((t, i) => <li key={i}>{d(t)}</li>)}
               </ul>
             </div>
           )}
@@ -283,7 +274,7 @@ export default async function OpportunityDetailsPage({
         >
           <p className="eyebrow mb-3">About this opportunity</p>
           <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: "var(--ink-soft)" }}>
-            {opp.description}
+            {d(opp.description)}
           </p>
         </div>
       )}

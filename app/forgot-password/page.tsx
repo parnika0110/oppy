@@ -1,0 +1,422 @@
+"use client";
+
+import { useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+
+function ForgotPasswordForm() {
+  const searchParams = useSearchParams();
+  const loginUrl = `/login${searchParams.get("next") ? `?next=${encodeURIComponent(searchParams.get("next")!)}` : ""}`;
+
+  const [step, setStep] = useState<"email" | "reset">("email");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  // Password validation
+  const passwordsMatch = password === confirmPassword || confirmPassword === "";
+  const passwordValid = password.length >= 8;
+  const canSubmitReset = code.trim().length >= 4 && passwordValid && passwordsMatch && !loading;
+
+  async function handleRequestCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setStep("reset");
+        setError(null);
+      } else {
+        setError(data.error || "Failed to send reset code.");
+      }
+    } catch {
+      setError("Network error — please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canSubmitReset) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          code: code.trim(),
+          password,
+        }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setSuccess(data.message || "Password reset successful!");
+        setError(null);
+      } else {
+        setError(data.error || "Reset failed.");
+      }
+    } catch {
+      setError("Network error — please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Success state ─────────────────────────────────────────────────
+  if (success) {
+    return (
+      <div style={{ minHeight: "70vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: "100%", maxWidth: 380, textAlign: "center" }}>
+          <div style={{ marginBottom: "2rem" }}>
+            <p className="eyebrow mb-2">Password reset</p>
+            <h1
+              className="font-display font-semibold"
+              style={{ fontSize: "1.75rem", color: "var(--ink)" }}
+            >
+              All set!
+            </h1>
+          </div>
+          <div
+            style={{
+              padding: "1.25rem 1rem",
+              background: "#D1FAE5",
+              border: "1px solid #A7F3D0",
+              borderRadius: 12,
+              fontSize: "0.9rem",
+              color: "#065F46",
+              marginBottom: "1.5rem",
+            }}
+          >
+            {success}
+          </div>
+          <a
+            href={loginUrl}
+            style={{
+              display: "inline-block",
+              padding: "0.875rem 2rem",
+              background: "var(--ink)",
+              color: "var(--paper)",
+              borderRadius: 10,
+              fontSize: "0.9rem",
+              fontWeight: 600,
+              fontFamily: "'Space Grotesk', sans-serif",
+              textDecoration: "none",
+            }}
+          >
+            Log in →
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 1: Request code ──────────────────────────────────────────
+  if (step === "email") {
+    return (
+      <div style={{ minHeight: "70vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: "100%", maxWidth: 380 }}>
+          <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+            <p className="eyebrow mb-2">Reset password</p>
+            <h1
+              className="font-display font-semibold"
+              style={{ fontSize: "1.75rem", color: "var(--ink)" }}
+            >
+              Forgot your password?
+            </h1>
+            <p style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "var(--ink-soft)" }}>
+              Enter your email and we&apos;ll send you a reset code.
+            </p>
+          </div>
+
+          <form
+            onSubmit={handleRequestCode}
+            style={{
+              padding: "2rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.1rem",
+              border: "1px solid var(--line)",
+              borderRadius: 16,
+              background: "var(--card)",
+            }}
+          >
+            <div>
+              <label className="eyebrow" style={{ display: "block", marginBottom: 6 }}>
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full px-4 py-2.5 rounded-xl text-sm"
+                style={{ border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)" }}
+                autoFocus
+              />
+            </div>
+
+            {error && (
+              <div
+                style={{
+                  padding: "0.75rem 1rem",
+                  background: "#FEE2E2",
+                  border: "1px solid #FECACA",
+                  borderRadius: 8,
+                  fontSize: "0.85rem",
+                  color: "#991B1B",
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading || !email.trim()}
+              className="w-full"
+              style={{
+                padding: "0.875rem",
+                background: loading || !email.trim() ? "var(--ink-soft)" : "var(--ink)",
+                color: "var(--paper)",
+                border: "none",
+                borderRadius: 10,
+                fontSize: "0.9rem",
+                fontWeight: 600,
+                fontFamily: "'Space Grotesk', sans-serif",
+                cursor: loading || !email.trim() ? "not-allowed" : "pointer",
+              }}
+            >
+              {loading ? "Sending…" : "Send reset code →"}
+            </button>
+          </form>
+
+          <p style={{ textAlign: "center", marginTop: "1.25rem", fontSize: "0.85rem", color: "var(--ink-soft)" }}>
+            Remember your password?{" "}
+            <a
+              href={loginUrl}
+              className="underline-hover"
+              style={{ color: "var(--lavender-deep)" }}
+            >
+              Log in
+            </a>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 2: Enter code + new password ─────────────────────────────
+  return (
+    <div style={{ minHeight: "70vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: "100%", maxWidth: 380 }}>
+        <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+          <p className="eyebrow mb-2">Step 2 of 2</p>
+          <h1
+            className="font-display font-semibold"
+            style={{ fontSize: "1.75rem", color: "var(--ink)" }}
+          >
+            Reset your password
+          </h1>
+          <p style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "var(--ink-soft)" }}>
+            Enter the code sent to <strong>{email}</strong> and choose a new password.
+          </p>
+        </div>
+
+        <form
+          onSubmit={handleResetPassword}
+          style={{
+            padding: "2rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "1.1rem",
+            border: "1px solid var(--line)",
+            borderRadius: 16,
+            background: "var(--card)",
+          }}
+        >
+          <div>
+            <label className="eyebrow" style={{ display: "block", marginBottom: 6 }}>
+              Reset code
+            </label>
+            <input
+              type="text"
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Enter your 6-digit code"
+              className="w-full px-4 py-2.5 rounded-xl text-sm"
+              style={{
+                border: "1px solid var(--line)",
+                background: "var(--paper)",
+                color: "var(--ink)",
+                fontFamily: "'JetBrains Mono', monospace",
+                letterSpacing: "0.1em",
+                textAlign: "center",
+              }}
+              autoFocus
+              autoComplete="one-time-code"
+            />
+          </div>
+
+          <div>
+            <label className="eyebrow" style={{ display: "block", marginBottom: 6 }}>
+              New password
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              className="w-full px-4 py-2.5 rounded-xl text-sm"
+              style={{
+                border: `1px solid ${password && !passwordValid ? "#FECACA" : "var(--line)"}`,
+                background: "var(--paper)",
+                color: "var(--ink)",
+              }}
+              autoComplete="new-password"
+            />
+            {password && !passwordValid && (
+              <p style={{ marginTop: 4, fontSize: "0.75rem", color: "#991B1B" }}>
+                Password must be at least 8 characters.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="eyebrow" style={{ display: "block", marginBottom: 6 }}>
+              Confirm password
+            </label>
+            <input
+              type="password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repeat your new password"
+              className="w-full px-4 py-2.5 rounded-xl text-sm"
+              style={{
+                border: `1px solid ${confirmPassword && !passwordsMatch ? "#FECACA" : "var(--line)"}`,
+                background: "var(--paper)",
+                color: "var(--ink)",
+              }}
+              autoComplete="new-password"
+            />
+            {confirmPassword && !passwordsMatch && (
+              <p style={{ marginTop: 4, fontSize: "0.75rem", color: "#991B1B" }}>
+                Passwords do not match.
+              </p>
+            )}
+          </div>
+
+          {error && (
+            <div
+              style={{
+                padding: "0.75rem 1rem",
+                background: "#FEE2E2",
+                border: "1px solid #FECACA",
+                borderRadius: 8,
+                fontSize: "0.85rem",
+                color: "#991B1B",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={!canSubmitReset}
+            className="w-full"
+            style={{
+              padding: "0.875rem",
+              background: !canSubmitReset ? "var(--ink-soft)" : "var(--ink)",
+              color: "var(--paper)",
+              border: "none",
+              borderRadius: 10,
+              fontSize: "0.9rem",
+              fontWeight: 600,
+              fontFamily: "'Space Grotesk', sans-serif",
+              cursor: !canSubmitReset ? "not-allowed" : "pointer",
+            }}
+          >
+            {loading ? "Resetting…" : "Reset password →"}
+          </button>
+        </form>
+
+        <p style={{ textAlign: "center", marginTop: "1.25rem", fontSize: "0.85rem", color: "var(--ink-soft)" }}>
+          <button
+            type="button"
+            onClick={() => { setStep("email"); setError(null); }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--lavender-deep)",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+              textDecoration: "underline",
+              fontFamily: "inherit",
+            }}
+          >
+            ← Use a different email
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ForgotPasswordSkeleton() {
+  return (
+    <div style={{ minHeight: "70vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: "100%", maxWidth: 380 }}>
+        <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+          <div style={{ width: 120, height: 14, borderRadius: 4, background: "var(--line)", margin: "0 auto 0.75rem" }} />
+          <div style={{ width: 260, height: 28, borderRadius: 6, background: "var(--line)", margin: "0 auto" }} />
+        </div>
+        <div
+          style={{
+            padding: "2rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "1.1rem",
+            border: "1px solid var(--line)",
+            borderRadius: 16,
+            background: "var(--card)",
+          }}
+        >
+          <div>
+            <div style={{ width: 48, height: 12, borderRadius: 4, background: "var(--line)", marginBottom: 6 }} />
+            <div style={{ width: "100%", height: 42, borderRadius: 12, background: "var(--paper)", border: "1px solid var(--line)" }} />
+          </div>
+          <div style={{ width: "100%", height: 46, borderRadius: 10, background: "var(--ink-soft)" }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={<ForgotPasswordSkeleton />}>
+      <ForgotPasswordForm />
+    </Suspense>
+  );
+}
