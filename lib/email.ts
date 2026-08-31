@@ -23,6 +23,14 @@ export async function sendPasswordResetEmail(
   const publicKey = process.env.EMAILJS_PUBLIC_KEY;
   const privateKey = process.env.EMAILJS_PRIVATE_KEY;
 
+  // Diagnostic: log env var availability (booleans only, never values)
+  console.log("[Email] EmailJS env availability:", {
+    serviceId: Boolean(serviceId),
+    templateId: Boolean(templateId),
+    publicKey: Boolean(publicKey),
+    privateKey: Boolean(privateKey),
+  });
+
   if (!serviceId || !templateId || !publicKey || !privateKey) {
     console.warn(
       "[Email] EmailJS not configured (missing required env vars). Password reset code not sent."
@@ -31,6 +39,7 @@ export async function sendPasswordResetEmail(
   }
 
   try {
+    console.log("[Email] Attempting EmailJS request");
     const response = await fetch(EMAILJS_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -47,6 +56,8 @@ export async function sendPasswordResetEmail(
         },
       }),
     });
+
+    console.log("[Email] EmailJS response:", response.status);
 
     if (!response.ok) {
       const body = await response.text().catch(() => "(unreadable)");
