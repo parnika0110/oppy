@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { OpportunityDocument } from "@/types/opportunity";
 import SaveButton from "./SaveButton";
@@ -121,6 +122,7 @@ function OrgAvatar({ org, category }: { org: string; category: string }) {
 }
 
 export default function OpportunityCard({ opportunity }: { opportunity: OpportunityDocument }) {
+  const router = useRouter();
   const [imgError, setImgError] = useState(false);
   const [ogFailed, setOgFailed] = useState(false);
   const cat = CATEGORY_STYLES[opportunity.category] ?? CATEGORY_STYLES.Event;
@@ -252,14 +254,18 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
 
         {/* ── Org + Title ──── */}
         <p className="eyebrow truncate" style={{ fontSize: "0.68rem" }}>
-          <a
-            href={`/org/${encodeURIComponent(opportunity.organization)}`}
-            className="hover:underline"
-            style={{ color: "var(--lavender-deep)" }}
-            onClick={(e) => e.stopPropagation()}
+          <button
+            type="button"
+            className="hover:underline bg-transparent border-none p-0 cursor-pointer"
+            style={{ color: "var(--lavender-deep)", font: "inherit", fontSize: "inherit" }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              router.push(`/org/${encodeURIComponent(opportunity.organization)}`);
+            }}
           >
             {d(opportunity.organization)}
-          </a>
+          </button>
         </p>
         <h3
           className="mt-0.5 font-display font-semibold leading-snug line-clamp-2 group-hover:text-[var(--lavender-deep)] transition-colors"

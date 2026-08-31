@@ -11,6 +11,37 @@
 
 const SARVAM_BASE_URL = "https://api.sarvam.ai";
 
+/** Map AI-returned interest names to taxonomy keys. */
+const INTEREST_ALIASES: Record<string, string> = {
+  "AI": "AI / ML",
+  "Artificial Intelligence": "AI / ML",
+  "Machine Learning": "AI / ML",
+  "ML": "AI / ML",
+  "Web Development": "Web Development",
+  "Frontend": "Web Development",
+  "Backend": "Software Engineering",
+  "Full Stack": "Web Development",
+  "Software Engineering": "Software Engineering",
+  "Open Source": "Open Source",
+  "Data Science": "Data Science",
+  "Design": "Design",
+  "Research": "Research",
+  "Cybersecurity": "Cybersecurity",
+  "Product Management": "Product Management",
+  "Cloud": "Cloud",
+  "Startups": "Startups",
+  "Mobile": "Mobile",
+  "DevOps": "DevOps",
+};
+
+function normalizeInterests(raw: string[] | undefined): string[] | undefined {
+  if (!raw || raw.length === 0) return undefined;
+  const normalized = raw
+    .map((i) => INTEREST_ALIASES[i] || i)
+    .filter((i) => Boolean(i));
+  return normalized.length > 0 ? [...new Set(normalized)] : undefined;
+}
+
 interface SarvamConfig {
   apiKey?: string;
   baseUrl?: string;
@@ -139,7 +170,7 @@ Rules:
 
         return {
           category: Array.isArray(parsed.category) ? parsed.category : undefined,
-          interests: Array.isArray(parsed.interests) ? parsed.interests : undefined,
+          interests: normalizeInterests(parsed.interests),
           remote: typeof parsed.remote === "boolean" ? parsed.remote : undefined,
           location: location || undefined,
           experience: typeof parsed.experience === "string" ? parsed.experience : undefined,
@@ -168,30 +199,48 @@ export async function transcribeAudio(
 
   const config = getConfig();
 
+  // Diagnostic logging (server-side only, never exposed to client)
+  const hasKey = Boolean(config.apiKey);
+  const blobSize = audioBlob.size;
+  const blobType = audioBlob.type || "unknown";
+
   try {
+    // Normalize MIME type — browser MediaRecorder produces "audio/webm;codecs=opus"
+    // but Sarvam only accepts exact types like "audio/webm", not codec-qualified ones
+    const normalizedType = (audioBlob.type || "audio/webm").split(";")[0].trim();
+    const normalizedBlob = new Blob([audioBlob], { type: normalizedType });
+
     const formData = new FormData();
-    formData.append("input", audioBlob, "audio.webm");
-    formData.append("input_language", language || "auto");
-    formData.append("model", "saaras:v2.5");
+    // Sarvam API expects field name "file", not "input"
+    formData.append("file", normalizedBlob, "recording.webm");
+    // Sarvam API expects "language_code" with BCP-47 values; "unknown" = auto-detect
+    formData.append("language_code", language || "unknown");
+    // Use current stable model (saaras:v3) — v2.5 is deprecated
+    formData.append("model", "saaras:v3");
+
+    console.log(`[Sarvam] STT request: mime=${normalizedType} (original: ${blobType}), size=${blobSize}B, hasKey=${hasKey}`);
 
     const response = await fetch(`${config.baseUrl}/speech-to-text`, {
       method: "POST",
       headers: {
-        "API-Subscription-Key": config.apiKey!,
+        "api-subscription-key": config.apiKey!,
       },
       body: formData,
       signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {
-      console.error("[Sarvam] STT failed:", response.status);
+      const errBody = await response.text().catch(() => "");
+      console.error(`[Sarvam] STT failed: status=${response.status}, body=${errBody.substring(0, 300)}`);
       return null;
     }
 
     const data = await response.json();
+    console.log(`[Sarvam] STT success: transcript length=${(data.transcript || "").length}`);
     return data.transcript || null;
   } catch (err) {
-    console.error("[Sarvam] STT error:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[Sarvam] STT error: ${msg}`);
     return null;
   }
 }

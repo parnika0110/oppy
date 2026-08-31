@@ -7,7 +7,7 @@ import { checkRateLimit, getRateLimitKey } from "@/lib/rate-limit";
  * POST /api/auth/forgot-password
  *
  * Generates a 6-digit reset code and sends it to the user's email
- * via Resend (transactional email).
+ * via EmailJS (transactional email).
  *
  * Always returns 200 to prevent email enumeration — the response
  * is identical whether the email exists or not.
