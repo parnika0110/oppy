@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
+import { useRouter } from "next/navigation";
 
 interface User {
   id: string;
@@ -98,26 +99,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const router = useRouter();
+
   const toggleSaved = async (id: string) => {
     const isSaved = savedIds.has(id);
     try {
+      let res: Response;
       if (isSaved) {
-        await fetch(`/api/saved?opportunityId=${id}`, { method: "DELETE" });
+        res = await fetch(`/api/saved?opportunityId=${id}`, { method: "DELETE" });
+      } else {
+        res = await fetch("/api/saved", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ opportunityId: id }),
+        });
+      }
+
+      if (res.status === 401) {
+        // Session expired or invalid — send user to log in
+        router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+        return;
+      }
+
+      if (!res.ok) {
+        // Non-401 server error — don't update local state
+        console.error("[Saved] API error:", res.status);
+        return;
+      }
+
+      // Only update local state after confirmed success
+      if (isSaved) {
         setSavedIds((prev) => {
           const next = new Set(prev);
           next.delete(id);
           return next;
         });
       } else {
-        await fetch("/api/saved", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ opportunityId: id }),
-        });
         setSavedIds((prev) => new Set(prev).add(id));
       }
     } catch {
-      // silently fail
+      console.error("[Saved] Network error: could not reach server.");
     }
   };
 
