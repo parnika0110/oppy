@@ -33,15 +33,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Server-side diagnostic logging (never exposed to client)
+    console.log(`[AI/transcribe] Received: mime=${audioFile.type}, size=${audioFile.size}B, lang=${language || "auto"}`);
+
     const transcript = await transcribeAudio(audioFile, language || undefined);
 
     if (!transcript) {
+      console.warn(`[AI/transcribe] Transcription returned null for ${audioFile.size}B ${audioFile.type} audio`);
       return NextResponse.json(
         { error: "Could not understand the audio. Please try again or type instead.", code: "TRANSCRIPTION_FAILED" },
         { status: 503 }
       );
     }
 
+    console.log(`[AI/transcribe] Success: ${transcript.length} chars`);
     return NextResponse.json({ transcript });
   } catch (err) {
     console.error("[AI/transcribe] Error:", err);

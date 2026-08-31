@@ -146,9 +146,11 @@ export default function DiscoveryWizard() {
 
   const handleVoiceInput = async () => {
     setAiError(null); // Clear any previous error before attempting
+    setAiLoading(true); // Disable mic immediately to prevent double-clicks
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setAiError("Voice input is not supported in this browser. Please type your query.");
+      setAiLoading(false);
       return;
     }
 
@@ -157,8 +159,19 @@ export default function DiscoveryWizard() {
 
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder = new MediaRecorder(stream);
+      // Use the browser's preferred MIME type for best compatibility
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : "";
+      mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       const chunks: Blob[] = [];
+
+      // Capture mimeType before the callback (TypeScript can't prove mediaRecorder is non-null inside onstop)
+      const capturedMimeType = mediaRecorder.mimeType || "audio/webm";
 
       mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
       mediaRecorder.onstop = async () => {
@@ -172,9 +185,9 @@ export default function DiscoveryWizard() {
           return;
         }
 
-        const audioBlob = new Blob(chunks, { type: "audio/webm" });
+        const audioBlob = new Blob(chunks, { type: capturedMimeType });
 
-        setAiLoading(true);
+        // aiLoading is already true from handleVoiceInput start
         try {
           const formData = new FormData();
           formData.append("audio", audioBlob);

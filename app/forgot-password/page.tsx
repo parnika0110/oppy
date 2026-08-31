@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 function ForgotPasswordForm() {
@@ -15,6 +15,38 @@ function ForgotPasswordForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  async function handleResendCode() {
+    if (resendCooldown > 0 || !email.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      if (res.ok) {
+        setResendCooldown(30);
+        setError(null);
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to resend code.");
+      }
+    } catch {
+      setError("Network error — please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // Password validation
   const passwordsMatch = password === confirmPassword || confirmPassword === "";
@@ -362,21 +394,41 @@ function ForgotPasswordForm() {
         </form>
 
         <p style={{ textAlign: "center", marginTop: "1.25rem", fontSize: "0.85rem", color: "var(--ink-soft)" }}>
-          <button
-            type="button"
-            onClick={() => { setStep("email"); setError(null); }}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--lavender-deep)",
-              cursor: "pointer",
-              fontSize: "0.85rem",
-              textDecoration: "underline",
-              fontFamily: "inherit",
-            }}
-          >
-            ← Use a different email
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem" }}>
+            <button
+              type="button"
+              onClick={handleResendCode}
+              disabled={resendCooldown > 0 || loading}
+              style={{
+                background: "none",
+                border: "none",
+                color: resendCooldown > 0 ? "var(--ink-soft)" : "var(--lavender-deep)",
+                cursor: resendCooldown > 0 ? "not-allowed" : "pointer",
+                fontSize: "0.85rem",
+                textDecoration: "underline",
+                fontFamily: "inherit",
+              }}
+            >
+              {resendCooldown > 0
+                ? `Resend code in ${resendCooldown}s`
+                : "Didn't receive the code? Resend"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setStep("email"); setError(null); }}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--lavender-deep)",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                textDecoration: "underline",
+                fontFamily: "inherit",
+              }}
+            >
+              ← Use a different email
+            </button>
+          </div>
         </p>
       </div>
     </div>
