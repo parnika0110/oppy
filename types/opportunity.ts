@@ -205,4 +205,8 @@ export interface IngestionRun {
   failed: number;
   durationMs: number;
   errors: string[];
+  /** "success" | "error" | "skipped" — omitted on older docs for backward compat */
+  status?: "success" | "error" | "skipped";
+  /** Reason when status="skipped": "not_due", "locked", etc. */
+  reason?: string;
 }

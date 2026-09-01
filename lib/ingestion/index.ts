@@ -1,5 +1,6 @@
 import { getOpportunitiesCollection, getIngestionRunsCollection, getDb } from "@/lib/mongodb";
 import { RawOpportunity, OpportunitySource, IngestionRun } from "@/types/opportunity";
+import { isSourceOverdue, getSourceInterval } from "./scheduler";
 
 // Source adapters — Hackathons & Events
 import { DevfolioSource } from "./sources/devfolio";
@@ -99,6 +100,8 @@ export interface PipelineResult {
   durationMs: number;
   discovery?: { discovered: number; created: number; skipped: number; rejected: number; errors: string[] };
   promoted?: number;
+  lockAcquired?: boolean;
+  sourcesSkipped?: string[];
 }
 
 // ── Escape regex special chars in titles ─────────────────────────────────────
@@ -109,18 +112,152 @@ function escapeRegex(str: string): string {
 
 // ── Core Pipeline ───────────────────────────────────────────────────────────
 
+// ── Concurrency Lock ────────────────────────────────────────────────────────
+// Prevents overlapping ingestion runs. Uses a MongoDB document as a simple lock.
+// The lock has a TTL so a crashed run doesn't permanently block future runs.
+
+const LOCK_TTL_MS = 10 * 60 * 1000; // 10 minutes — generous for slow runs
+const LOCK_COLLECTION = "ingestionLock";
+
+async function acquireLock(): Promise<boolean> {
+  const db = await getDb();
+  const lockCol = db.collection(LOCK_COLLECTION);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + LOCK_TTL_MS);
+  // Unique token so we can verify ownership after the atomic upsert.
+  const lockId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  // Atomic acquire via a single findOneAndUpdate with upsert:
+  //
+  //  • If no document exists → filter doesn't match → upsert inserts a new doc ✅
+  //  • If document exists but expiresAt ≤ now (expired) → filter matches → upsert overwrites ✅
+  //  • If document exists and expiresAt > now (active) → filter doesn't match →
+  //    upsert tries to INSERT (no matched doc) → duplicate-key error on _id →
+  //    we catch code 11000 and return false ✅
+  //
+  // This is race-safe: only one process can successfully match + upsert at a time.
+  try {
+    await lockCol.findOneAndUpdate(
+      {
+        _id: "pipeline" as any,
+        expiresAt: { $lte: now },
+      },
+      {
+        $set: { startedAt: now, expiresAt, lockId } as any,
+      },
+      { upsert: true }
+    );
+  } catch (err: any) {
+    // Duplicate key = filter didn't match an active lock → another process holds it
+    if (err?.code === 11000) return false;
+    throw err;
+  }
+
+  // Defence-in-depth: verify we own the lock (should never fail in practice)
+  const doc = await lockCol.findOne({ _id: "pipeline" as any });
+  return (doc as any)?.lockId === lockId;
+}
+
+async function releaseLock(): Promise<void> {
+  const db = await getDb();
+  const lockCol = db.collection(LOCK_COLLECTION);
+  await lockCol.deleteOne({ _id: "pipeline" as any });
+}
+
 /**
  * Run the full ingestion pipeline across all registered sources.
  * Optionally filter to a single source by name.
+ *
+ * When no sourceName is specified, respects source-specific refresh intervals:
+ * sources that ran recently (within their configured interval) are skipped.
+ * Pass sourceName to force-run a specific source regardless of timing.
  */
 export async function runIngestionPipeline(sourceName?: string): Promise<PipelineResult> {
   const pipelineStart = Date.now();
-  const sources = sourceName
-    ? ALL_SOURCES.filter((s) => s.name.toLowerCase().includes(sourceName.toLowerCase()))
-    : ALL_SOURCES;
+  const isSingleSource = Boolean(sourceName);
 
-  if (sources.length === 0 && sourceName && !"discovery".includes(sourceName.toLowerCase())) {
-    throw new Error(`No source found matching "${sourceName}". Available: ${ALL_SOURCES.map((s) => s.name).join(", ")}`);
+  // ── Concurrency lock (only for full pipeline runs) ──────────────────────
+  let lockAcquired = false;
+  if (!isSingleSource) {
+    lockAcquired = await acquireLock();
+    if (!lockAcquired) {
+      console.log("[Ingestion] Pipeline already running — skipping.");
+      return {
+        totalFetched: 0, totalInserted: 0, totalSkipped: 0, totalFailed: 0,
+        sourceResults: [], durationMs: 0, lockAcquired: false, sourcesSkipped: [],
+      };
+    }
+  }
+
+  try {
+    return await runPipelineInner(sourceName, pipelineStart);
+  } finally {
+    if (lockAcquired) {
+      await releaseLock();
+    }
+  }
+}
+
+async function runPipelineInner(sourceName: string | undefined, pipelineStart: number): Promise<PipelineResult> {
+  // ── Select sources ──────────────────────────────────────────────────────
+  let sources: OpportunitySource[];
+  const sourcesSkipped: string[] = [];
+
+  if (sourceName) {
+    // Force-run a specific source (from admin dashboard or manual trigger)
+    sources = ALL_SOURCES.filter((s) => s.name.toLowerCase().includes(sourceName.toLowerCase()));
+    if (sources.length === 0 && !"discovery".includes(sourceName.toLowerCase())) {
+      throw new Error(`No source found matching "${sourceName}". Available: ${ALL_SOURCES.map((s) => s.name).join(", ")}`);
+    }
+  } else {
+    // Full pipeline: only run sources that are overdue for refresh
+    sources = [];
+    const runsCollection = await getIngestionRunsCollection();
+
+    for (const source of ALL_SOURCES) {
+      // Find the most recent successful run for this source
+      const lastRun = await runsCollection
+        .findOne(
+          { source: source.name },
+          { sort: { completedAt: -1 } }
+        );
+
+      const lastRunIso = lastRun?.completedAt || null;
+
+      if (isSourceOverdue(source.name, lastRunIso)) {
+        sources.push(source);
+      } else {
+        sourcesSkipped.push(source.name);
+      }
+    }
+
+    // Record telemetry for skipped sources so admin dashboard can distinguish
+    // "skipped (not due)" from "never ran" from "failed".
+    if (sourcesSkipped.length > 0) {
+      const skippedEntries = sourcesSkipped.map((name) => ({
+        source: name,
+        status: "skipped" as const,
+        reason: "not_due" as const,
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        fetched: 0, inserted: 0, skipped: 0, failed: 0,
+        durationMs: 0,
+        errors: [] as string[],
+      }));
+      await runsCollection.insertMany(skippedEntries);
+      console.log(`[Ingestion] Recorded telemetry for ${sourcesSkipped.length} skipped sources.`);
+    }
+
+    if (sources.length === 0) {
+      console.log("[Ingestion] All sources are up to date — nothing to do.");
+      return {
+        totalFetched: 0, totalInserted: 0, totalSkipped: 0, totalFailed: 0,
+        sourceResults: [], durationMs: Date.now() - pipelineStart,
+        lockAcquired: true, sourcesSkipped,
+      };
+    }
+
+    console.log(`[Ingestion] Running ${sources.length} overdue sources, skipping ${sourcesSkipped.length} up-to-date sources.`);
   }
 
   // Refresh lifecycle before ingestion (close expired opportunities)
@@ -285,6 +422,7 @@ export async function runIngestionPipeline(sourceName?: string): Promise<Pipelin
     );
 
     // ── Save run telemetry ──
+    const hasErrors = result.errors.length > 0 || result.failed > 0;
     const runDoc: IngestionRun = {
       startedAt: new Date(sourceStart).toISOString(),
       completedAt: new Date().toISOString(),
@@ -295,6 +433,7 @@ export async function runIngestionPipeline(sourceName?: string): Promise<Pipelin
       failed: result.failed,
       durationMs: result.durationMs,
       errors: result.errors,
+      status: hasErrors ? "error" : "success",
     };
     await runsCollection.insertOne(runDoc);
 
@@ -328,6 +467,8 @@ export async function runIngestionPipeline(sourceName?: string): Promise<Pipelin
     durationMs: Date.now() - pipelineStart,
     discovery,
     promoted,
+    lockAcquired: true,
+    sourcesSkipped,
   };
 
   console.log(
