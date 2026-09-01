@@ -27,9 +27,14 @@ export async function GET(request: Request) {
 
     const result = await runIngestionPipeline(sourceName);
 
+    // When the lock is held, the pipeline returns lockAcquired=false with zero counts.
+    const wasSkipped = result.lockAcquired === false;
+
     return NextResponse.json({
       success: true,
-      message: "Ingestion pipeline completed.",
+      message: wasSkipped
+        ? "Another ingestion run is already in progress."
+        : "Ingestion pipeline completed.",
       data: result,
     });
   } catch (error) {
