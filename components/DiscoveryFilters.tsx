@@ -193,9 +193,9 @@ export default function DiscoveryFilters() {
             className={`shrink-0 text-xs px-3 py-1.5 rounded-full transition-all`}
             style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: "0.7rem",
-              border: "1px solid", borderColor: activeCategories.length === 0 ? "var(--lavender-deep)" : "var(--line)",
-              background: activeCategories.length === 0 ? "var(--lavender)" : "var(--paper)",
-              color: activeCategories.length === 0 ? "#4A3F8A" : "var(--ink-soft)",
+              border: "1px solid", borderColor: activeCategories.length === 0 ? "var(--accent-deep)" : "var(--line)",
+              background: activeCategories.length === 0 ? "var(--accent)" : "var(--paper)",
+              color: activeCategories.length === 0 ? "var(--accent-deep)" : "var(--ink-soft)",
             }}
             aria-pressed={activeCategories.length === 0}
           >
@@ -210,9 +210,9 @@ export default function DiscoveryFilters() {
                 className="shrink-0 text-xs px-3 py-1.5 rounded-full transition-all"
                 style={{
                   fontFamily: "'JetBrains Mono', monospace", fontSize: "0.7rem",
-                  border: "1px solid", borderColor: isActive ? "var(--lavender-deep)" : "var(--line)",
-                  background: isActive ? "var(--lavender)" : "var(--paper)",
-                  color: isActive ? "#4A3F8A" : "var(--ink-soft)",
+                  border: "1px solid", borderColor: isActive ? "var(--accent-deep)" : "var(--line)",
+                  background: isActive ? "var(--accent)" : "var(--paper)",
+                  color: isActive ? "var(--accent-deep)" : "var(--ink-soft)",
                 }}
                 aria-pressed={isActive}
               >
@@ -236,7 +236,7 @@ export default function DiscoveryFilters() {
             Refine
           </span>
           {activeFilterCount > 0 && (
-            <span className="text-[0.6rem] px-2 py-0.5 rounded-full" style={{ fontFamily: "'JetBrains Mono', monospace", background: "var(--lavender)", color: "#4A3F8A" }}>
+            <span className="text-[0.6rem] px-2 py-0.5 rounded-full" style={{ fontFamily: "'JetBrains Mono', monospace", background: "var(--accent)", color: "var(--accent-deep)" }}>
               {activeFilterCount} active
             </span>
           )}
@@ -265,9 +265,9 @@ export default function DiscoveryFilters() {
                     style={{
                       fontFamily: "'JetBrains Mono', monospace", fontSize: "0.7rem",
                       border: "1px solid",
-                      borderColor: isActive ? "var(--lavender-deep)" : "var(--line)",
-                      background: isActive ? "var(--lavender)" : "var(--paper)",
-                      color: isActive ? "#4A3F8A" : "var(--ink-soft)",
+                      borderColor: isActive ? "var(--accent-deep)" : "var(--line)",
+                      background: isActive ? "var(--accent)" : "var(--paper)",
+                      color: isActive ? "var(--accent-deep)" : "var(--ink-soft)",
                     }}
                     aria-pressed={isActive}
                   >
@@ -309,9 +309,9 @@ export default function DiscoveryFilters() {
               style={{
                 fontFamily: "'JetBrains Mono', monospace", fontSize: "0.7rem",
                 border: "1px solid",
-                borderColor: currentRemote ? "var(--lavender-deep)" : "var(--line)",
-                background: currentRemote ? "var(--lavender)" : "var(--paper)",
-                color: currentRemote ? "#4A3F8A" : "var(--ink-soft)",
+                borderColor: currentRemote ? "var(--accent-deep)" : "var(--line)",
+                background: currentRemote ? "var(--accent)" : "var(--paper)",
+                color: currentRemote ? "var(--accent-deep)" : "var(--ink-soft)",
               }}
             >
               🌐 Remote
@@ -337,8 +337,8 @@ export default function DiscoveryFilters() {
             <label
               className="flex items-center gap-1.5 cursor-pointer px-3 py-1.5 rounded-xl transition-colors"
               style={{
-                border: "1px solid", borderColor: currentShowClosed ? "var(--lavender-deep)" : "var(--line)",
-                background: currentShowClosed ? "var(--lavender)" : "var(--paper)",
+                border: "1px solid", borderColor: currentShowClosed ? "var(--accent-deep)" : "var(--line)",
+                background: currentShowClosed ? "var(--accent)" : "var(--paper)",
               }}
             >
               <input
@@ -348,14 +348,14 @@ export default function DiscoveryFilters() {
                 className="sr-only"
               />
               <span className="w-3 h-3 rounded-sm border flex items-center justify-center"
-                style={{ borderColor: currentShowClosed ? "var(--lavender-deep)" : "var(--ink-soft)", background: currentShowClosed ? "var(--lavender-deep)" : "transparent" }}>
+                style={{ borderColor: currentShowClosed ? "var(--accent-deep)" : "var(--ink-soft)", background: currentShowClosed ? "var(--accent-deep)" : "transparent" }}>
                 {currentShowClosed && (
                   <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
                     <path d="M1.5 4L3 5.5L6.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 )}
               </span>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.7rem", color: currentShowClosed ? "#4A3F8A" : "var(--ink-soft)" }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.7rem", color: currentShowClosed ? "var(--accent-deep)" : "var(--ink-soft)" }}>
                 Closed
               </span>
             </label>

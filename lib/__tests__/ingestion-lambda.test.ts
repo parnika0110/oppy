@@ -4,6 +4,9 @@
  * These tests verify the Lambda handler structure, logging, error handling,
  * and contract with runIngestionPipeline(). They do NOT test the actual
  * pipeline execution (covered by ingestion-scheduling.test.ts).
+ *
+ * Includes regression test for EventBridge/Scheduler event detection
+ * using the exact event shape from CloudWatch logs.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -194,6 +197,91 @@ describe("Lambda deployment contract", () => {
     expect(result.runId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
     );
+  });
+});
+
+// ── EventBridge / Scheduler event detection ─────────────────────────────────
+
+describe("EventBridge/Scheduler event detection", () => {
+  /**
+   * Exact event shape from CloudWatch logs (2026-09-01T11:30:33 UTC).
+   * This is what AWS EventBridge Scheduler sends to the Lambda.
+   */
+  const EVENTBRIDGE_SCHEDULER_EVENT = {
+    version: "0",
+    id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "detail-type": "Scheduled Event",
+    source: "aws.schedule",
+    account: "123456789012",
+    time: "2026-09-01T11:30:33Z",
+    region: "ap-south-1",
+    resources: [
+      "arn:aws:scheduler:ap-south-1:123456789012:default/oppy-ingestion-schedule",
+    ],
+    detail: {},
+  };
+
+  it("recognizes EventBridge Scheduler event and runs full pipeline", async () => {
+    const { handler } = await import("@/lambda/ingestion");
+    const result = await handler(EVENTBRIDGE_SCHEDULER_EVENT as any);
+
+    expect(result.success).toBe(true);
+    // Should run ALL sources (undefined = source-aware scheduling), NOT "aws.schedule"
+    expect(mockPipelineModule.runIngestionPipeline).toHaveBeenCalledWith(undefined);
+  });
+
+  it("does NOT pass 'aws.schedule' as an ingestion source name", async () => {
+    const { handler } = await import("@/lambda/ingestion");
+    await handler(EVENTBRIDGE_SCHEDULER_EVENT as any);
+
+    const calledWith = mockPipelineModule.runIngestionPipeline.mock.calls[0][0];
+    expect(calledWith).not.toBe("aws.schedule");
+  });
+
+  it("recognizes event by detail-type field", async () => {
+    const { handler } = await import("@/lambda/ingestion");
+    const event = { "detail-type": "Scheduled Event", source: "aws.schedule" };
+    await handler(event as any);
+
+    expect(mockPipelineModule.runIngestionPipeline).toHaveBeenCalledWith(undefined);
+  });
+
+  it("recognizes event by version field", async () => {
+    const { handler } = await import("@/lambda/ingestion");
+    const event = { version: "0", source: "aws.schedule" };
+    await handler(event as any);
+
+    expect(mockPipelineModule.runIngestionPipeline).toHaveBeenCalledWith(undefined);
+  });
+
+  it("recognizes event by source='aws.schedule' alone", async () => {
+    const { handler } = await import("@/lambda/ingestion");
+    const event = { source: "aws.schedule" };
+    await handler(event as any);
+
+    expect(mockPipelineModule.runIngestionPipeline).toHaveBeenCalledWith(undefined);
+  });
+
+  it("still passes source name for direct invocation (not EventBridge)", async () => {
+    const { handler } = await import("@/lambda/ingestion");
+    await handler({ source: "Devfolio" });
+
+    expect(mockPipelineModule.runIngestionPipeline).toHaveBeenCalledWith("Devfolio");
+  });
+
+  it("still respects forceAll for direct invocation", async () => {
+    const { handler } = await import("@/lambda/ingestion");
+    await handler({ forceAll: true });
+
+    // forceAll = true → pass undefined to skip source-aware scheduling (run everything)
+    expect(mockPipelineModule.runIngestionPipeline).toHaveBeenCalledWith(undefined);
+  });
+
+  it("empty event runs full pipeline (default behavior)", async () => {
+    const { handler } = await import("@/lambda/ingestion");
+    await handler({});
+
+    expect(mockPipelineModule.runIngestionPipeline).toHaveBeenCalledWith(undefined);
   });
 });
 

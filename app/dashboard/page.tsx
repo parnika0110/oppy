@@ -5,8 +5,9 @@ import { ObjectId } from "mongodb";
 import OpportunityCard from "@/components/OpportunityCard";
 import ExplanationBadge from "@/components/ExplanationBadge";
 import OppyEmptyState from "@/components/OppyEmptyState";
+import ThemedOppyOrb from "@/components/ThemedOppyOrb";
 import { OpportunityDocument } from "@/types/opportunity";
-import { rankForUser } from "@/lib/recommendations";
+import { rankOpportunities, getMatchLabels, type DiscoveryPreferences } from "@/lib/relevance";
 
 function serialize(doc: any): OpportunityDocument {
   return { ...doc, _id: doc._id.toString() };
@@ -31,8 +32,8 @@ async function getDashboardData(userId: string) {
     activeCount,
     recentlyViewedLinks,
   ] = await Promise.all([
-    // Get all active opportunities for recommendation scoring
-    opportunities.find(activeFilter).sort({ opportunityScore: -1, createdAt: -1 }).limit(100).toArray(),
+    // Rank the complete active pool for personalization (no arbitrary limit)
+    opportunities.find(activeFilter).sort({ opportunityScore: -1, createdAt: -1 }).toArray(),
     // Closing soon: active opportunities with deadline in next 14 days
     opportunities
       .find({
@@ -173,13 +174,36 @@ export default async function DashboardPage() {
 
   const firstName = user.name.split(" ")[0];
 
-  // Personalized recommendations
-  const recommended = rankForUser(user, allActive, 6);
-  const recommendedIds = new Set(recommended.map((r) => r.opportunity._id));
+  // Personalized recommendations using the stronger relevance scoring system
+  const prefs: DiscoveryPreferences = {
+    categories: user.preferences?.categories?.length ? user.preferences.categories : undefined,
+    interests: user.preferences?.interests?.length ? user.preferences.interests : undefined,
+    location: user.preferences?.locations?.length ? user.preferences.locations[0] : undefined,
+    remote: user.preferences?.remote === true,
+    experience: user.preferences?.experience || undefined,
+  };
+
+  const hasPrefs = Boolean(prefs.categories?.length || prefs.interests?.length || prefs.location || prefs.remote || prefs.experience);
+
+  let recommendedItems: OpportunityDocument[];
   const explanations = new Map<string, string[]>();
-  for (const r of recommended) {
-    explanations.set(r.opportunity._id, r.explanation);
+
+  if (hasPrefs) {
+    const ranked = rankOpportunities(allActive, prefs);
+    recommendedItems = ranked.slice(0, 6).map((r) => r.opportunity);
+    // Build explanations from the same scoring system used for ranking
+    for (const r of ranked.slice(0, 6)) {
+      const labels = getMatchLabels(r.score, prefs);
+      if (labels.length > 0) {
+        explanations.set(r.opportunity._id, labels);
+      }
+    }
+  } else {
+    // No preferences set — show top-quality opportunities without false personalization badges
+    recommendedItems = allActive.slice(0, 6);
   }
+
+  const recommendedIds = new Set(recommendedItems.map((r) => r._id));
 
   // For "New opportunities", exclude already-recommended ones to avoid duplication
   const newOpportunities = allActive
@@ -188,41 +212,46 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-10">
-        <p className="eyebrow mb-2">Dashboard</p>
-        <h1 className="font-display font-semibold tracking-tight" style={{ fontSize: "clamp(1.5rem, 4vw, 2.25rem)", color: "var(--ink)" }}>
-          Good to see you, {firstName}
-        </h1>
-        <p className="mt-2 text-sm" style={{ color: "var(--ink-soft)" }}>
-          {activeCount} active {activeCount === 1 ? "opportunity" : "opportunities"} in OPPY right now.
-        </p>
+      <div className="mb-10 flex items-start gap-4">
+        <div className="flex-1">
+          <p className="eyebrow mb-2">Dashboard</p>
+          <h1 className="font-display font-semibold tracking-tight" style={{ fontSize: "clamp(1.5rem, 4vw, 2.25rem)", color: "var(--ink)" }}>
+            Good to see you, {firstName}
+          </h1>
+          <p className="mt-2 text-sm" style={{ color: "var(--ink-soft)" }}>
+            {activeCount} active {activeCount === 1 ? "opportunity" : "opportunities"} in OPPY right now.
+          </p>
+        </div>
+        {user.onboardingComplete && (
+          <div className="hidden sm:block mt-1">
+            <ThemedOppyOrb mood="welcoming" size={48} />
+          </div>
+        )}
         {!user.onboardingComplete && (
           <div
             className="mt-5 p-4 rounded-2xl flex items-center gap-4"
-            style={{ background: "var(--lavender)", border: "1px solid var(--lavender-deep)" }}
+            style={{ background: "var(--accent)", border: "1px solid var(--accent-deep)" }}
           >
             <div className="flex-1">
-              <p className="font-medium text-sm" style={{ color: "#4A3F8A" }}>
+              <p className="font-medium text-sm" style={{ color: "var(--accent-deep)" }}>
                 Get better recommendations
               </p>
-              <p className="mt-0.5 text-xs" style={{ color: "#5A4F9A" }}>
+              <p className="mt-0.5 text-xs" style={{ color: "var(--ink-soft)" }}>
                 Tell OPPY about your skills, interests, and preferences to unlock personalized results.
               </p>
             </div>
             <a
               href="/onboarding"
               className="shrink-0 text-xs font-medium px-4 py-2 rounded-full"
-              style={{ background: "#4A3F8A", color: "white", fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ background: "var(--accent-deep)", color: "white", fontFamily: "'Space Grotesk', sans-serif" }}
             >
               Finish setup →
             </a>
           </div>
         )}
-      </div>
-
-      <Section
+      </div>        <Section
         title="Recommended for you"
-        items={recommended.map((r) => r.opportunity)}
+        items={recommendedItems}
         explanations={explanations}
         emptyMood={user.onboardingComplete ? "thinking" : "welcoming"}
         emptyMessage={

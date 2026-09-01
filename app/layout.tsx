@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/AuthContext";
+import AccentProvider from "@/components/AccentProvider";
 import Nav from "@/components/Nav";
 import { OppyMark } from "@/components/OppyLogo";
+import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "OPPY — Find opportunities before everyone else",
@@ -18,7 +20,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/oppy-favicon.svg" type="image/svg+xml" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -30,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen antialiased" style={{ background: "var(--paper)", color: "var(--ink)" }}>
         <AuthProvider>
+        <AccentProvider>
         {/* Subtle grain texture */}
         <div aria-hidden="true" className="grain" />
 
@@ -66,24 +69,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </main>
 
         {/* ── Footer ──────────────────────────────────────────────── */}
-        <footer
-          className="mt-20 border-t py-10"
-          style={{ borderColor: "var(--line)", background: "var(--paper-2)" }}
-        >
-          <div className="max-w-6xl mx-auto px-5 sm:px-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <p className="font-display font-semibold flex items-center gap-1" style={{ color: "var(--ink)" }}>
-                <OppyMark size={20} />
-                <span>PPY</span>
-              </p>
-              <p className="eyebrow mt-1">Find opportunities before everyone else</p>
-            </div>
-            <div className="flex items-center gap-4 text-sm" style={{ color: "var(--ink-soft)" }}>
-              <a href="/" className="underline-hover">Browse</a>
-              <a href="/saved" className="underline-hover">Saved</a>
-            </div>
-          </div>
-        </footer>
+        <Footer />
+        </AccentProvider>
         </AuthProvider>
       </body>
     </html>

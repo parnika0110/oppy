@@ -614,7 +614,7 @@ export default function OnboardingPage() {
                 className={`onb-exp-btn ${active ? "onb-exp-active" : ""}`}
               >
                 <span className="onb-exp-dot" style={{
-                  background: active ? "var(--lavender-deep)" : "var(--line)",
+                  background: active ? "var(--accent-deep)" : "var(--line)",
                 }} />
                 <span>{opt}</span>
               </button>

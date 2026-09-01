@@ -12,8 +12,8 @@ export default function ExplanationBadge({ text }: { text: string }) {
       className="inline-flex items-center gap-1 text-[0.62rem] font-medium px-2 py-0.5 rounded-full"
       style={{
         fontFamily: "'JetBrains Mono', monospace",
-        background: "var(--lavender)",
-        color: "#4A3F8A",
+        background: "var(--accent)",
+        color: "var(--accent-deep)",
         letterSpacing: "0.01em",
       }}
     >

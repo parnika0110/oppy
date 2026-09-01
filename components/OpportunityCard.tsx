@@ -62,11 +62,12 @@ function fmtDate(iso: string | null | undefined) {
 function useOgImageFallback(opp: OpportunityDocument, primaryImgFailed: boolean) {
   const [ogImage, setOgImage] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
+  const [fetched, setFetched] = useState(false);
 
   const sourceUrl = opp.sourceUrl || opp.applicationLink || opp.officialSourceUrl;
 
   const fetchOg = useCallback(async () => {
-    if (ogImage || fetching || !sourceUrl) return;
+    if (fetching || fetched || !sourceUrl) return;
     setFetching(true);
     try {
       const res = await fetch(`/api/og-image?url=${encodeURIComponent(sourceUrl)}`);
@@ -76,15 +77,25 @@ function useOgImageFallback(opp: OpportunityDocument, primaryImgFailed: boolean)
       }
     } catch {
       // silently fail
+    } finally {
+      setFetched(true);
+      setFetching(false);
     }
-  }, [sourceUrl, ogImage, fetching]);
+  }, [sourceUrl, fetched]);
 
-  // Trigger OG fetch when primary image fails
+  // Proactively fetch OG image when no primary image exists (avoid flash)
   useEffect(() => {
-    if (primaryImgFailed && sourceUrl) {
+    if (!opp.imageUrl && sourceUrl && !fetched && !fetching) {
       fetchOg();
     }
-  }, [primaryImgFailed, sourceUrl, fetchOg]);
+  }, [opp.imageUrl, sourceUrl, fetched, fetching, fetchOg]);
+
+  // Also fetch on primary image failure
+  useEffect(() => {
+    if (primaryImgFailed && sourceUrl && !fetched && !fetching) {
+      fetchOg();
+    }
+  }, [primaryImgFailed, sourceUrl, fetched, fetching, fetchOg]);
 
   return ogImage;
 }
@@ -182,14 +193,13 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
       <Link href={`/opportunity/${opportunity._id}?from=${encodeURIComponent(pathname + (searchParams.toString() ? `?${searchParams.toString()}` : ""))}`} className="group flex flex-col h-full p-5" target="_self">
         {/* ── Image or avatar ──── */}
         {showImage ? (
-          <div className="relative w-full rounded-xl mb-4 overflow-hidden" style={{ aspectRatio: '16/9', background: 'var(--card)' }}>
+          <div className="relative w-full rounded-xl mb-4 overflow-hidden" style={{ aspectRatio: '16/9', background: 'var(--paper-2)' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={hasPrimaryImage ? opportunity.imageUrl! : ogImage!}
               alt={opportunity.imageAlt || `${opportunity.title} cover`}
               loading="lazy"
-              className="w-full h-full object-contain"
-              style={{ maxHeight: '100%' }}
+              className="w-full h-full object-cover"
               onError={() => {
                 if (hasPrimaryImage) setImgError(true);
                 else setOgFailed(true);
@@ -219,7 +229,7 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
           {isNew && (
             <span
               className="inline-block text-[0.65rem] font-semibold px-2 py-0.5 rounded-full"
-              style={{ fontFamily: "'JetBrains Mono', monospace", background: "var(--lavender-deep)", color: "white" }}
+              style={{ fontFamily: "'JetBrains Mono', monospace", background: "var(--accent-deep)", color: "white" }}
             >
               NEW
             </span>
@@ -259,7 +269,7 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
           <button
             type="button"
             className="hover:underline bg-transparent border-none p-0 cursor-pointer"
-            style={{ color: "var(--lavender-deep)", font: "inherit", fontSize: "inherit" }}
+            style={{ color: "var(--accent-deep)", font: "inherit", fontSize: "inherit" }}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -270,7 +280,7 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
           </button>
         </p>
         <h3
-          className="mt-0.5 font-display font-semibold leading-snug line-clamp-2 group-hover:text-[var(--lavender-deep)] transition-colors"
+          className="mt-0.5 font-display font-semibold leading-snug line-clamp-2 group-hover:text-[var(--accent-deep)] transition-colors"
           style={{ fontSize: "1rem", color: "var(--ink)" }}
         >
           {d(opportunity.title)}
@@ -320,7 +330,7 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
           {isExternalCta ? (
             <span
               className="text-xs font-medium cursor-pointer"
-              style={{ color: "var(--lavender-deep)", fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ color: "var(--accent-deep)", fontFamily: "'Space Grotesk', sans-serif" }}
               role="link"
               tabIndex={0}
               onClick={(e) => {
@@ -341,7 +351,7 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
           ) : (
             <span
               className="text-xs font-medium"
-              style={{ color: "var(--lavender-deep)", fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ color: "var(--accent-deep)", fontFamily: "'Space Grotesk', sans-serif" }}
             >
               View details →
             </span>
