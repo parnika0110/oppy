@@ -115,6 +115,16 @@ export async function getPasswordResetsCollection() {
   return db.collection("passwordResets");
 }
 
+export async function getApplicationTrackingCollection() {
+  const db = await getDb();
+  return db.collection("applicationTracking");
+}
+
+export async function getReminderLogCollection() {
+  const db = await getDb();
+  return db.collection("reminderLog");
+}
+
 /**
  * Ensure the indexes PHASE 18 of the spec calls for exist. Safe to call
  * repeatedly — createIndex is a no-op if the index already exists with the
@@ -134,6 +144,10 @@ export async function ensureUserIndexes() {
     db.collection("recentlyViewed").createIndex({ userId: 1, viewedAt: -1 }),
     db.collection("passwordResets").createIndex({ email: 1, used: 1, expiresAt: 1 }),
     db.collection("passwordResets").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.collection("applicationTracking").createIndex({ userId: 1, opportunityId: 1 }, { unique: true }),
+    db.collection("applicationTracking").createIndex({ userId: 1, updatedAt: -1 }),
+    db.collection("reminderLog").createIndex({ userId: 1, opportunityId: 1, reminderType: 1 }),
+    db.collection("reminderLog").createIndex({ sentAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 }), // TTL: auto-delete after 90 days
   ]);
   indexesEnsured = true;
 }

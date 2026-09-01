@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateSignupInput, hashPassword, createSession, SESSION_COOKIE } from "@/lib/userAuth";
 import { getUsersCollection, ensureUserIndexes } from "@/lib/mongodb";
+import { checkRateLimit, getRateLimitKey } from "@/lib/rate-limit";
 
 /**
  * POST /api/auth/signup
  */
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 5 signups per 15 minutes per IP
+    const key = getRateLimitKey(request, "signup");
+    const { allowed, retryAfterMs } = checkRateLimit(key, 5, 15 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many signup attempts. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil(retryAfterMs / 1000)) } }
+      );
+    }
+
     const body = await request.json();
     const { email, password, name } = body;
 

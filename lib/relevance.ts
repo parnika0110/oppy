@@ -202,11 +202,17 @@ export function scoreOpportunity(
   }
 
   // ── EXPERIENCE: ranking signal ────────────────────────────────────────
-  if (prefs.experience === "Student") {
+  // Normalize both onboarding labels and legacy labels
+  const exp = (prefs.experience || "").toLowerCase();
+  const isStudent = exp === "student" || exp === "beginner";
+  const isProfessional = exp === "working professional" || exp === "advanced";
+  const isRecentGrad = exp === "recent graduate" || exp === "intermediate";
+
+  if (isStudent) {
     experience = isStudentRelevant(opp) ? 10 : 0;
-  } else if (prefs.experience === "Working Professional") {
+  } else if (isProfessional) {
     experience = isProfessionalRelevant(opp) ? 10 : 3;
-  } else if (prefs.experience === "Recent Graduate") {
+  } else if (isRecentGrad) {
     experience = (isStudentRelevant(opp) || isProfessionalRelevant(opp)) ? 8 : 3;
   } else {
     experience = 3;
@@ -299,7 +305,7 @@ export function getMatchLabels(score: RelevanceScore, prefs: DiscoveryPreference
     labels.push(prefs.location!);
   }
 
-  if (prefs.experience === "Student" && score.experience >= 8) {
+  if ((prefs.experience === "Student" || prefs.experience === "Beginner") && score.experience >= 8) {
     labels.push("Student friendly");
   }
 

@@ -3,24 +3,44 @@
 import { useEffect, useState, useCallback } from "react";
 import OpportunityCard from "@/components/OpportunityCard";
 import ApplicationTracker from "@/components/ApplicationTracker";
+import OppyEmptyState from "@/components/OppyEmptyState";
 import { useAuth } from "@/lib/AuthContext";
 import { OpportunityDocument } from "@/types/opportunity";
+
+interface TrackingEntry {
+  opportunityId: string;
+  status: string;
+}
 
 export default function SavedPage() {
   const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<OpportunityDocument[]>([]);
+  const [tracking, setTracking] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
 
   const loadSaved = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/saved");
-      if (res.ok) {
-        const data = await res.json();
+      const [savedRes, trackingRes] = await Promise.all([
+        fetch("/api/saved"),
+        fetch("/api/tracking"),
+      ]);
+      if (savedRes.ok) {
+        const data = await savedRes.json();
         setItems(data.items || []);
       } else {
         setItems([]);
       }
+      if (trackingRes.ok) {
+        const tData = await trackingRes.json();
+        const tMap = new Map<string, string>();
+        for (const entry of tData.items || []) {
+          tMap.set(entry.opportunityId, entry.status);
+        }
+        setTracking(tMap);
+      }
+      // If tracking request fails, silently continue with empty tracking map
+      // (non-critical: tracking status shows as default "saved" on cards)
     } finally {
       setLoading(false);
     }
@@ -77,21 +97,12 @@ export default function SavedPage() {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="py-20 text-center rounded-2xl" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
-          <p className="font-display font-semibold text-lg" style={{ color: "var(--ink)" }}>
-            Nothing saved yet
-          </p>
-          <p className="mt-2 text-sm" style={{ color: "var(--ink-soft)" }}>
-            Browse opportunities and tap the bookmark icon to save them here.
-          </p>
-          <a
-            href="/"
-            className="mt-5 inline-block text-sm font-medium px-4 py-2 rounded-full"
-            style={{ background: "var(--ink)", color: "var(--paper)", fontFamily: "'Space Grotesk', sans-serif" }}
-          >
-            Browse opportunities →
-          </a>
-        </div>
+        <OppyEmptyState
+          mood="curious"
+          title="Nothing saved yet"
+          description="Browse opportunities and tap the bookmark icon to save them here."
+          action={{ label: "Browse opportunities →", href: "/" }}
+        />
       ) : (
         <>
           <p className="eyebrow mb-5">
@@ -102,7 +113,10 @@ export default function SavedPage() {
               <div key={opp._id} className="relative">
                 <OpportunityCard opportunity={opp} />
                 <div className="mt-2 px-2">
-                  <ApplicationTracker opportunityId={opp._id} />
+                  <ApplicationTracker
+                    opportunityId={opp._id}
+                    currentStatus={tracking.get(opp._id)}
+                  />
                 </div>
               </div>
             ))}

@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/AuthContext";
+import OppyOrb from "@/components/OppyOrb";
 
 export default function SignupPage() {
   const router = useRouter();
+  const { signup } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,17 +19,12 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        router.push("/onboarding");
-        router.refresh();
+      const result = await signup(email, password, name);
+      if (result.error) {
+        setError(result.error);
       } else {
-        setError(data.error || "Signup failed.");
+        // AuthContext has set user state — safe to navigate
+        router.push("/onboarding");
       }
     } catch {
       setError("Network error — please try again.");
@@ -39,6 +37,9 @@ export default function SignupPage() {
     <div style={{ minHeight: "70vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "1rem" }}>
+            <OppyOrb mood="excited" size={40} />
+          </div>
           <p className="eyebrow mb-2">Get started</p>
           <h1 className="font-display font-semibold" style={{ fontSize: "1.75rem", color: "var(--ink)" }}>
             Create your OPPY account

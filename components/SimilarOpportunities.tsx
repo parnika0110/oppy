@@ -27,7 +27,33 @@ export default function SimilarOpportunities({ opportunityId }: { opportunityId:
     fetchSimilar();
   }, [opportunityId]);
 
-  if (loading || items.length === 0) return null;
+  if (loading) {
+    return (
+      <section className="mt-12">
+        <p className="eyebrow mb-2">Related</p>
+        <h2
+          className="font-display font-semibold tracking-tight mb-5"
+          style={{ fontSize: "clamp(1.1rem, 2.5vw, 1.5rem)", color: "var(--ink)" }}
+        >
+          Similar opportunities
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--line)", background: "var(--card)" }}>
+              <div className="h-36 skeleton" />
+              <div className="p-5 space-y-3">
+                <div className="h-3 skeleton rounded w-2/3" />
+                <div className="h-4 skeleton rounded" />
+                <div className="h-3 skeleton rounded w-1/2" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (items.length === 0) return null;
 
   return (
     <section className="mt-12">
