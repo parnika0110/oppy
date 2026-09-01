@@ -74,3 +74,84 @@ export async function sendPasswordResetEmail(
     return false;
   }
 }
+
+// ── Deadline Reminder Emails ──────────────────────────────────────────────
+
+const REMINDER_TEMPLATE_ID = process.env.EMAILJS_REMINDER_TEMPLATE_ID || process.env.EMAILJS_TEMPLATE_ID;
+
+export interface DeadlineReminderParams {
+  userName: string;
+  opportunityTitle: string;
+  organization: string;
+  category: string;
+  deadlineDate: Date;
+  daysRemaining: number;
+  reminderType: "closing_3day" | "closing_1day";
+}
+
+/**
+ * Send a deadline reminder email for a saved opportunity approaching its deadline.
+ * Returns true if the email was sent successfully.
+ */
+export async function sendDeadlineReminder(
+  email: string,
+  params: DeadlineReminderParams
+): Promise<boolean> {
+  const serviceId = process.env.EMAILJS_SERVICE_ID;
+  const templateId = REMINDER_TEMPLATE_ID;
+  const publicKey = process.env.EMAILJS_PUBLIC_KEY;
+  const privateKey = process.env.EMAILJS_PRIVATE_KEY;
+
+  if (!serviceId || !templateId || !publicKey || !privateKey) {
+    console.warn("[Email] EmailJS not configured — deadline reminder skipped.");
+    return false;
+  }
+
+  const deadlineStr = params.deadlineDate.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const urgencyLabel =
+    params.reminderType === "closing_1day"
+      ? "Closing tomorrow!"
+      : `Closing in ${params.daysRemaining} days`;
+
+  try {
+    const response = await fetch(EMAILJS_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        service_id: serviceId,
+        template_id: templateId,
+        user_id: publicKey,
+        accessToken: privateKey,
+        template_params: {
+          to_email: email,
+          user_name: params.userName,
+          opportunity_title: params.opportunityTitle,
+          organization: params.organization,
+          category: params.category,
+          deadline_date: deadlineStr,
+          days_remaining: String(params.daysRemaining),
+          urgency_label: urgencyLabel,
+          app_name: "OPPY",
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "(unreadable)");
+      console.error(`[Email] Deadline reminder failed (${response.status}): ${body}`);
+      return false;
+    }
+
+    console.log(`[Email] Deadline reminder sent to ${email} for "${params.opportunityTitle}"`);
+    return true;
+  } catch (err) {
+    console.error(`[Email] Deadline reminder error for ${email}:`, err);
+    return false;
+  }
+}
