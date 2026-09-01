@@ -60,7 +60,7 @@ export default function SearchBar({ className }: { className?: string }) {
       <div
         className="relative flex items-center rounded-xl border transition-all"
         style={{
-          borderColor: focused ? "var(--lavender-deep)" : "var(--line)",
+          borderColor: focused ? "var(--accent-deep)" : "var(--line)",
           background: "var(--paper)",
           boxShadow: focused ? "0 0 0 3px rgba(139,125,199,0.12)" : "none",
         }}

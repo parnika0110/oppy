@@ -1,6 +1,7 @@
 import OpportunityCard from "@/components/OpportunityCard";
 import DiscoveryWizard from "@/components/DiscoveryWizard";
 import OppyLogoWrapper from "@/components/OppyLogoWrapper";
+import ThemedOppyOrb from "@/components/ThemedOppyOrb";
 import SearchBar from "@/components/SearchBar";
 import { OpportunityDocument } from "@/types/opportunity";
 
@@ -37,7 +38,7 @@ export default function LandingPage({ liveOpps, activeCount }: { liveOpps: Oppor
               <br />
               shouldn&apos;t be this
               <br />
-              <span style={{ color: "var(--lavender-deep)" }}>hard to find.</span>
+              <span style={{ color: "var(--accent-deep)" }}>hard to find.</span>
             </h1>
             <p className="lp-subhead">
               OPPY brings internships, jobs, hackathons, fellowships, events and
@@ -103,11 +104,14 @@ export default function LandingPage({ liveOpps, activeCount }: { liveOpps: Oppor
           ════════════════════════════════════════════════════════════════ */}
       <section id="discover" className="lp-section" style={{ background: 'var(--paper-2)' }}>
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
+            <ThemedOppyOrb mood="curious" size={40} />
+          </div>
           <p className="eyebrow" style={{ marginBottom: '0.75rem' }}>Tell OPPY what you want</p>
           <h2 className="lp-section-headline" style={{ fontSize: 'clamp(1.2rem, 2.5vw, 1.6rem)' }}>
             Let us find opportunities
             <br />
-            <span style={{ color: 'var(--lavender-deep)' }}>that match you.</span>
+            <span style={{ color: 'var(--accent-deep)' }}>that match you.</span>
           </h2>
         </div>
         <DiscoveryWizard />
@@ -125,7 +129,7 @@ export default function LandingPage({ liveOpps, activeCount }: { liveOpps: Oppor
               <br />
               17 tabs to find one
               <br />
-              <span style={{ color: "var(--lavender-deep)" }}>good opportunity.</span>
+              <span style={{ color: "var(--accent-deep)" }}>good opportunity.</span>
             </h2>
           </div>
           <div className="lp-problem-right">
@@ -241,7 +245,7 @@ export default function LandingPage({ liveOpps, activeCount }: { liveOpps: Oppor
             <h2 className="lp-section-headline">
               Not every opportunity
               <br />
-              is <span style={{ color: "var(--lavender-deep)" }}>your</span> opportunity.
+              is <span style={{ color: "var(--accent-deep)" }}>your</span> opportunity.
             </h2>
             <p className="lp-section-sub" style={{ maxWidth: "28rem" }}>
               Tell OPPY what you care about — skills, interests, experience,
@@ -264,7 +268,7 @@ export default function LandingPage({ liveOpps, activeCount }: { liveOpps: Oppor
             {/* Arrow */}
             <div className="lp-personalize-arrow" aria-hidden="true">
               <svg width="24" height="40" viewBox="0 0 24 40" fill="none">
-                <path d="M12 0V36M12 36L4 28M12 36L20 28" stroke="var(--lavender-deep)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M12 0V36M12 36L4 28M12 36L20 28" stroke="var(--accent-deep)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
             {/* Feed preview */}

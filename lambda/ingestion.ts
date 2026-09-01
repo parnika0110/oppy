@@ -33,14 +33,61 @@ async function getPipeline() {
   return _pipelinePromise;
 }
 
-// ── Handler ────────────────────────────────────────────────────────────────
+// ── Event detection ─────────────────────────────────────────────────────────
 
-interface LambdaEvent {
+/**
+ * Detect whether the event is an AWS EventBridge/Scheduler event.
+ *
+ * EventBridge Scheduler sends events with this shape:
+ * {
+ *   "version": "0",
+ *   "id": "...",
+ *   "detail-type": "Scheduled Event",
+ *   "source": "aws.schedule",
+ *   "account": "...",
+ *   "time": "...",
+ *   "region": "...",
+ *   "resources": ["arn:aws:scheduler:..."],
+ *   "detail": {}
+ * }
+ *
+ * Direct invocations (manual/admin) send:
+ * { "source": "Devfolio" } or { "forceAll": true }
+ */
+function isEventBridgeEvent(event: Record<string, unknown>): boolean {
+  // EventBridge events always have "version" and "detail-type" fields
+  // that our custom LambdaEvent interface does not use.
+  return (
+    typeof event["detail-type"] === "string" ||
+    typeof event["version"] === "string" ||
+    event["source"] === "aws.schedule"
+  );
+}
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+/** Shape expected by the handler when invoked directly (manual/admin). */
+interface DirectInvocationEvent {
   /** Run a single source by name (optional) */
   source?: string;
   /** Override: run ALL sources regardless of scheduling (optional) */
   forceAll?: boolean;
 }
+
+/** Shape of an AWS EventBridge/Scheduler event. */
+interface EventBridgeEvent {
+  version: string;
+  id: string;
+  "detail-type": string;
+  source: string;
+  account: string;
+  time: string;
+  region: string;
+  resources: string[];
+  detail: Record<string, unknown>;
+}
+
+type LambdaEvent = DirectInvocationEvent | EventBridgeEvent | Record<string, unknown>;
 
 interface LambdaResult {
   success: boolean;
@@ -67,6 +114,8 @@ interface LambdaResult {
   runId: string;
 }
 
+// ── Handler ────────────────────────────────────────────────────────────────
+
 export async function handler(event: LambdaEvent = {}): Promise<LambdaResult> {
   const runId = crypto.randomUUID();
   const startTime = Date.now();
@@ -77,8 +126,29 @@ export async function handler(event: LambdaEvent = {}): Promise<LambdaResult> {
   try {
     const { runIngestionPipeline } = await getPipeline();
 
-    const sourceName = event.source || undefined;
-    const forceAll = event.forceAll === true;
+    // ── Determine what to run ────────────────────────────────────────────
+    //
+    // EventBridge/Scheduler events: run ALL sources (respecting source-aware scheduling).
+    // Direct invocation with source name: run that specific source.
+    // Direct invocation with forceAll: run ALL sources, ignore scheduling.
+    // No event / empty event: run ALL sources (default behavior).
+
+    const eventRecord = event as Record<string, unknown>;
+    let sourceName: string | undefined;
+    let forceAll = false;
+
+    if (isEventBridgeEvent(eventRecord)) {
+      // EventBridge Scheduler — run the full pipeline with source-aware scheduling.
+      // Do NOT pass event.source ("aws.schedule") as a source name.
+      console.log(`[IngestionLambda] Detected EventBridge event — running full pipeline`);
+      sourceName = undefined;
+      forceAll = false;
+    } else {
+      // Direct invocation — respect source/forceAll params
+      const directEvent = event as DirectInvocationEvent;
+      sourceName = directEvent.source || undefined;
+      forceAll = directEvent.forceAll === true;
+    }
 
     // When forceAll is set, skip source-aware scheduling (run everything)
     // This is useful for initial seeding or emergency re-runs.

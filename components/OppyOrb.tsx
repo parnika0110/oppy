@@ -5,7 +5,9 @@ import { useId } from "react";
 /**
  * OPPY Orb — the canonical product mascot.
  *
- * Always lavender. Only mood/expression changes.
+ * Mood/expression changes based on context.
+ * Color responds to the user's selected accent theme via props.
+ *
  * Size determines face detail level:
  *   < 20px  → no face (just the orb)
  *   20–32px → eyes only (no mouth)
@@ -25,12 +27,18 @@ interface OppyOrbProps {
   mood?: OrbMood;
   size?: number;
   className?: string;
+  /** Light accent color for the orb gradient (default: lavender #D2C9EE) */
+  accentLight?: string;
+  /** Deep accent color for the orb gradient and pupils (default: lavender #8B7DC7) */
+  accentDeep?: string;
 }
 
 export default function OppyOrb({
   mood = "welcoming",
   size = 48,
   className,
+  accentLight = "#D2C9EE",
+  accentDeep = "#8B7DC7",
 }: OppyOrbProps) {
   const uniqueId = useId();
   const gradId = `oppy-grad-${uniqueId}`;
@@ -72,8 +80,8 @@ export default function OppyOrb({
     >
       <defs>
         <radialGradient id={gradId} cx="35%" cy="35%" r="65%">
-          <stop offset="0%" stopColor="#D2C9EE" />
-          <stop offset="100%" stopColor="#8B7DC7" />
+          <stop offset="0%" stopColor={accentLight} />
+          <stop offset="100%" stopColor={accentDeep} />
         </radialGradient>
       </defs>
 
@@ -111,13 +119,13 @@ export default function OppyOrb({
                 cx={-r * 0.2 + pupilOffsetX}
                 cy={mood === "thinking" ? 0.5 : 0}
                 r={r * 0.045}
-                fill="#6B5FB8"
+                fill={accentDeep}
               />
               <circle
                 cx={r * 0.2 + pupilOffsetX}
                 cy={mood === "thinking" ? 0.5 : 0}
                 r={r * 0.045}
-                fill="#6B5FB8"
+                fill={accentDeep}
               />
             </>
           )}

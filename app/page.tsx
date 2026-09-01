@@ -288,8 +288,8 @@ export default async function HomePage({
                           style={{
                             fontFamily: "'JetBrains Mono', monospace",
                             background: "rgba(255,255,255,0.92)",
-                            color: "var(--lavender-deep)",
-                            border: "1px solid var(--lavender)",
+                            color: "var(--accent-deep)",
+                            border: "1px solid var(--accent)",
                             backdropFilter: "blur(4px)",
                           }}
                         >

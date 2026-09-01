@@ -18,6 +18,9 @@
   --sage-deep: #6E9463;
   --blue: #ACCEDF;
   --blue-deep: #5D8BA3;
+  /* Accent — overridden per-user by AccentProvider */
+  --accent: #D2C9EE;
+  --accent-deep: #8B7DC7;
 }
 
 /* ── Base ────────────────────────────────────────────────────────────────── */
@@ -38,11 +41,11 @@ body {
 .font-mono    { font-family: 'JetBrains Mono', ui-monospace, monospace; }
 
 /* ── Text selection ──────────────────────────────────────────────────────── */
-::selection { background: var(--lavender); color: var(--ink); }
+::selection { background: var(--accent); color: var(--ink); }
 
 /* ── Focus styles ────────────────────────────────────────────────────────── */
 a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
-  outline: 2px solid var(--lavender-deep);
+  outline: 2px solid var(--accent-deep);
   outline-offset: 3px;
   border-radius: 4px;
 }
@@ -138,7 +141,7 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
 /* ── Scroll progress bar ─────────────────────────────────────────────────── */
 .scroll-progress {
   position: fixed; top: 0; left: 0; height: 2px; width: 0;
-  background: var(--lavender-deep); z-index: 100; transition: width 0.08s linear;
+  background: var(--accent-deep); z-index: 100; transition: width 0.08s linear;
 }
 
 /* ── Back-to-top button ──────────────────────────────────────────────────── */
@@ -268,16 +271,16 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
   transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 .lp-btn-secondary:hover {
-  border-color: var(--lavender-deep);
-  background: var(--lavender);
-  color: #4A3F8A;
+  border-color: var(--accent-deep);
+  background: var(--accent);
+  color: var(--accent-deep);
 }
 
 .lp-text-link {
   font-family: 'Space Grotesk', sans-serif;
   font-size: 0.88rem;
   font-weight: 500;
-  color: var(--lavender-deep);
+  color: var(--accent-deep);
   text-decoration: none;
   transition: opacity 0.2s ease;
 }
@@ -1524,4 +1527,177 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
   .onb-signal-dot { animation: none !important; opacity: 1; }
   .onb-intro-orb-glow { animation: none !important; }
   .onb-processing-glow { animation: none !important; }
+  .oppy-footer-orb-glow { animation: none !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   FOOTER — Branded closing experience
+   ══════════════════════════════════════════════════════════════════════ */
+
+.oppy-footer {
+  margin-top: 6rem;
+  border-top: 1px solid var(--line);
+  background: var(--paper-2);
+}
+
+/* ── Closing section ────────────────────────────────────────────── */
+
+.oppy-footer-closing {
+  text-align: center;
+  padding: 5rem 1.5rem 4rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.oppy-footer-orb-wrap {
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+  filter: drop-shadow(0 4px 12px rgba(139,125,199,0.25));
+}
+
+.oppy-footer-orb-glow {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0.35;
+  animation: footer-glow 4s ease-in-out infinite;
+}
+
+@keyframes footer-glow {
+  0%, 100% { opacity: 0.25; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.45; transform: translate(-50%, -50%) scale(1.15); }
+}
+
+.oppy-footer-headline {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  max-width: 36rem;
+  margin: 0 auto;
+}
+
+.oppy-footer-sub {
+  margin-top: 1rem;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  max-width: 28rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.oppy-footer-cta {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 2.5rem;
+  padding: 0.9rem 2rem;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--paper);
+  text-decoration: none;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.oppy-footer-cta:hover {
+  opacity: 0.88;
+  transform: translateY(-2px);
+}
+
+.oppy-footer-cta-label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+/* ── Navigation grid ────────────────────────────────────────────── */
+
+.oppy-footer-nav {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 2rem;
+}
+
+@media (max-width: 640px) {
+  .oppy-footer-nav {
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem 1.5rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .oppy-footer-nav {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+  }
+}
+
+.oppy-footer-nav-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 0.85rem;
+}
+
+.oppy-footer-nav-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.oppy-footer-nav-link {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.oppy-footer-nav-link:hover {
+  color: var(--accent-deep);
+}
+
+/* ── Brand signature ────────────────────────────────────────────── */
+
+.oppy-footer-signature {
+  text-align: center;
+  padding: 2rem 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.oppy-footer-brand {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.oppy-footer-tagline {
+  margin-top: 0.35rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  opacity: 0.7;
 }

@@ -37,6 +37,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       setUser(data.user);
 
+      // Persist avatar to localStorage for instant theme application
+      if (data.user?.avatar) {
+        try { localStorage.setItem("oppy_avatar", data.user.avatar); } catch {}
+      }
+
       // Load saved IDs
       if (data.user) {
         const savedRes = await fetch("/api/saved");
@@ -97,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setUser(null);
       setSavedIds(new Set());
+      try { localStorage.removeItem("oppy_avatar"); } catch {}
     }
   };
 

@@ -1,8 +1,12 @@
+"use client";
+
 import OppyOrb, { type OrbMood } from "./OppyOrb";
+import { useAccent } from "./AccentProvider";
 
 /**
  * OppyEmptyState — consistent empty-state pattern with OPPY character.
  * Copy, mood, and action are contextual to each page (not templated).
+ * Orb color respects the user's selected accent theme.
  */
 export default function OppyEmptyState({
   mood = "curious",
@@ -17,10 +21,12 @@ export default function OppyEmptyState({
   action?: { label: string; href: string };
   size?: number;
 }) {
+  const accent = useAccent();
+
   return (
     <div className="py-16 px-6 text-center rounded-2xl" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
       <div className="flex justify-center mb-5">
-        <OppyOrb mood={mood} size={size} />
+        <OppyOrb mood={mood} size={size} accentLight={accent.light} accentDeep={accent.deep} />
       </div>
       <p className="font-display font-semibold text-lg" style={{ color: "var(--ink)" }}>
         {title}

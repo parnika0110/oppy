@@ -12,7 +12,7 @@ const BCRYPT_ROUNDS = 12;
 export interface UserDocument {
   _id: ObjectId;
   email: string;
-  passwordHash: string;
+  passwordHash?: string; // optional for Google-only users
   name: string;
   avatar?: string;
   onboardingComplete?: boolean;

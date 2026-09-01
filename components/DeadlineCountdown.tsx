@@ -73,8 +73,8 @@ export default function DeadlineCountdown({
   } else {
     if (compact) return null;
     label = `${days}d left`;
-    bg = "var(--lavender)";
-    color = "#4A3F8A";
+    bg = "var(--accent)";
+    color = "var(--accent-deep)";
   }
 
   return (
