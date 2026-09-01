@@ -4,6 +4,7 @@ import { getOpportunitiesCollection, getSavedOpportunitiesCollection, getDb } fr
 import { ObjectId } from "mongodb";
 import OpportunityCard from "@/components/OpportunityCard";
 import ExplanationBadge from "@/components/ExplanationBadge";
+import OppyEmptyState from "@/components/OppyEmptyState";
 import { OpportunityDocument } from "@/types/opportunity";
 import { rankForUser } from "@/lib/recommendations";
 
@@ -55,7 +56,7 @@ async function getDashboardData(userId: string) {
       .limit(6)
       .toArray(),
     // Saved
-    saved.find({ userId }).sort({ savedAt: -1 }).limit(6).toArray(),
+    saved.find({ userId }).sort({ createdAt: -1 }).limit(6).toArray(),
     // Active count
     opportunities.countDocuments(activeFilter),
     // Recently viewed
@@ -123,11 +124,13 @@ async function getRecentlyViewed(userId: string): Promise<OpportunityDocument[]>
 function Section({
   title,
   emptyMessage,
+  emptyMood,
   items,
   explanations,
 }: {
   title: string;
   emptyMessage: string;
+  emptyMood?: "curious" | "thinking" | "no-results" | "welcoming";
   items: OpportunityDocument[];
   explanations?: Map<string, string[]>;
 }) {
@@ -137,12 +140,11 @@ function Section({
         {title}
       </h2>
       {items.length === 0 ? (
-        <div
-          className="py-10 px-6 text-center rounded-2xl text-sm"
-          style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--ink-soft)" }}
-        >
-          {emptyMessage}
-        </div>
+        <OppyEmptyState
+          mood={emptyMood || "curious"}
+          title={emptyMessage}
+          size={40}
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {items.map((opp) => (
@@ -195,13 +197,26 @@ export default async function DashboardPage() {
           {activeCount} active {activeCount === 1 ? "opportunity" : "opportunities"} in OPPY right now.
         </p>
         {!user.onboardingComplete && (
-          <a
-            href="/onboarding"
-            className="mt-4 inline-block text-sm font-medium px-4 py-2 rounded-full"
-            style={{ background: "var(--lavender)", color: "#4A3F8A", fontFamily: "'Space Grotesk', sans-serif" }}
+          <div
+            className="mt-5 p-4 rounded-2xl flex items-center gap-4"
+            style={{ background: "var(--lavender)", border: "1px solid var(--lavender-deep)" }}
           >
-            Set your preferences for better recommendations →
-          </a>
+            <div className="flex-1">
+              <p className="font-medium text-sm" style={{ color: "#4A3F8A" }}>
+                Get better recommendations
+              </p>
+              <p className="mt-0.5 text-xs" style={{ color: "#5A4F9A" }}>
+                Tell OPPY about your skills, interests, and preferences to unlock personalized results.
+              </p>
+            </div>
+            <a
+              href="/onboarding"
+              className="shrink-0 text-xs font-medium px-4 py-2 rounded-full"
+              style={{ background: "#4A3F8A", color: "white", fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              Finish setup →
+            </a>
+          </div>
         )}
       </div>
 
@@ -209,6 +224,7 @@ export default async function DashboardPage() {
         title="Recommended for you"
         items={recommended.map((r) => r.opportunity)}
         explanations={explanations}
+        emptyMood={user.onboardingComplete ? "thinking" : "welcoming"}
         emptyMessage={
           user.onboardingComplete
             ? "We're learning your preferences. Browse more to improve recommendations."
@@ -219,24 +235,28 @@ export default async function DashboardPage() {
       <Section
         title="New opportunities"
         items={newOpportunities}
+        emptyMood="curious"
         emptyMessage="No new opportunities yet. We'll surface them here as they're discovered."
       />
 
       <Section
         title="Closing soon"
         items={closingSoon}
+        emptyMood="welcoming"
         emptyMessage="Nothing closing in the next two weeks right now."
       />
 
       <Section
         title="Upcoming events"
         items={upcomingEvents}
+        emptyMood="curious"
         emptyMessage="No upcoming events discovered yet."
       />
 
       <Section
         title="Saved opportunities"
         items={savedItems}
+        emptyMood="no-results"
         emptyMessage="You haven't saved anything yet. Browse opportunities and tap the bookmark icon."
       />
 
