@@ -48,7 +48,12 @@ export function publicOpportunityFilter(params: {
   q?: string; category?: string | null; categories?: string; interests?: string; location?: string; tag?: string; remote?: string; experience?: string; showClosed: boolean;
 }): Filter<Document> {
   const clauses: Filter<Document>[] = [lifecycleFilter(params.showClosed)];
-  if (!params.showClosed) clauses.push(definitivelyClosedFilter(new Date()));
+  if (!params.showClosed) {
+    clauses.push(definitivelyClosedFilter(new Date()));
+    // Belt-and-suspenders: explicitly exclude closed opportunities
+    // in case the lifecycle cron hasn't marked them yet.
+    clauses.push({ lifecycleStatus: { $ne: "closed" } });
+  }
 
   // Multi-category support: "Job,Internship" or single "Job"
   const categoryList = params.categories

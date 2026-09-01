@@ -14,6 +14,7 @@ export interface UserDocument {
   email: string;
   passwordHash: string;
   name: string;
+  avatar?: string;
   onboardingComplete?: boolean;
   preferences?: {
     skills?: string[];
@@ -31,6 +32,7 @@ export interface SafeUser {
   id: string;
   email: string;
   name: string;
+  avatar?: string;
   onboardingComplete: boolean;
   preferences: NonNullable<UserDocument["preferences"]>;
   createdAt: string;
@@ -41,6 +43,7 @@ function toSafeUser(doc: UserDocument): SafeUser {
     id: doc._id.toString(),
     email: doc.email,
     name: doc.name,
+    avatar: doc.avatar,
     onboardingComplete: Boolean(doc.onboardingComplete),
     preferences: doc.preferences || {},
     createdAt: doc.createdAt.toISOString(),

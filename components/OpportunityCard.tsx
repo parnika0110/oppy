@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { OpportunityDocument } from "@/types/opportunity";
 import SaveButton from "./SaveButton";
@@ -123,6 +123,8 @@ function OrgAvatar({ org, category }: { org: string; category: string }) {
 
 export default function OpportunityCard({ opportunity }: { opportunity: OpportunityDocument }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [imgError, setImgError] = useState(false);
   const [ogFailed, setOgFailed] = useState(false);
   const cat = CATEGORY_STYLES[opportunity.category] ?? CATEGORY_STYLES.Event;
@@ -171,13 +173,13 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
       <div className="absolute right-3.5 top-3.5 z-10 flex items-center gap-1">
         <ShareButton
           title={opportunity.title}
-          url={`https://oppy.dev/opportunity/${opportunity._id}`}
+          url={`${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/opportunity/${opportunity._id}`}
           organization={opportunity.organization}
         />
         <SaveButton id={opportunity._id} />
       </div>
 
-      <Link href={`/opportunity/${opportunity._id}`} className="group flex flex-col h-full p-5" target="_self">
+      <Link href={`/opportunity/${opportunity._id}?from=${encodeURIComponent(pathname + (searchParams.toString() ? `?${searchParams.toString()}` : ""))}`} className="group flex flex-col h-full p-5" target="_self">
         {/* ── Image or avatar ──── */}
         {showImage ? (
           <div className="relative w-full rounded-xl mb-4 overflow-hidden" style={{ aspectRatio: '16/9', background: 'var(--card)' }}>

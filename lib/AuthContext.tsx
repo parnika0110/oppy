@@ -7,6 +7,7 @@ interface User {
   id: string;
   email: string;
   name: string;
+  avatar?: string;
   onboardingComplete: boolean;
   preferences: Record<string, any>;
   createdAt: string;

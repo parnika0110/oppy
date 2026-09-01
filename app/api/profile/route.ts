@@ -6,9 +6,9 @@ import { getUsersCollection } from "@/lib/mongodb";
  * GET /api/profile
  * PATCH /api/profile
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
@@ -28,7 +28,7 @@ export async function GET() {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
@@ -39,6 +39,7 @@ export async function PATCH(request: NextRequest) {
     const update: Record<string, any> = { updatedAt: new Date() };
 
     if (body.name !== undefined) update.name = body.name;
+    if (body.avatar !== undefined) update.avatar = body.avatar;
     if (body.experience_level !== undefined || body.experience !== undefined) {
       update["preferences.experience"] = body.experience_level || body.experience;
     }
@@ -47,7 +48,9 @@ export async function PATCH(request: NextRequest) {
     if (body.locations !== undefined) update["preferences.locations"] = body.locations;
     if (body.remote !== undefined) update["preferences.remote"] = body.remote;
     if (body.skills !== undefined) update["preferences.skills"] = body.skills;
-    if (body.onboarding_complete !== undefined) update.onboardingComplete = body.onboarding_complete;
+    // Accept both camelCase (from frontend) and snake_case (legacy)
+    const onboardingFlag = body.onboardingComplete ?? body.onboarding_complete;
+    if (onboardingFlag !== undefined) update.onboardingComplete = Boolean(onboardingFlag);
 
     await users.updateOne({ _id: new (await import("mongodb")).ObjectId(user.id) }, { $set: update });
 

@@ -89,6 +89,20 @@ describe("relevance scoring", () => {
     expect(score.experience).toBeGreaterThanOrEqual(8);
   });
 
+  it("maps Beginner experience to Student relevance", () => {
+    const opp = makeOpp({ title: "Student Intern", description: "Open to undergraduates" });
+    const prefs: DiscoveryPreferences = { experience: "Beginner" };
+    const score = scoreOpportunity(opp, prefs);
+    expect(score.experience).toBeGreaterThanOrEqual(8);
+  });
+
+  it("maps Advanced experience to Working Professional relevance", () => {
+    const opp = makeOpp({ title: "Senior Engineer", description: "Senior level position" });
+    const prefs: DiscoveryPreferences = { experience: "Advanced" };
+    const score = scoreOpportunity(opp, prefs);
+    expect(score.experience).toBeGreaterThanOrEqual(8);
+  });
+
   it("scores multiple preferences together", () => {
     const opp = makeOpp({
       title: "AI/ML Internship",

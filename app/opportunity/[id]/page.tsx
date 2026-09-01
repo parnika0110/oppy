@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import SaveButton from "@/components/SaveButton";
 import ViewTracker from "@/components/ViewTracker";
 import SimilarOpportunities from "@/components/SimilarOpportunities";
+import DetailTracker from "@/components/DetailTracker";
 import { DetailImage } from "@/components/DetailImage";
 import { OpportunityDocument } from "@/types/opportunity";
 import { getBestCtaUrl } from "@/lib/url-utils";
@@ -63,10 +64,13 @@ async function getOpportunity(id: string): Promise<OpportunityDocument | null> {
 
 export default async function OpportunityDetailsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { id } = await params;
+  const { from } = await searchParams;
   const opp = await getOpportunity(id);
   if (!opp) notFound();
 
@@ -110,11 +114,11 @@ export default async function OpportunityDetailsPage({
 
       {/* ── Breadcrumb ──────────────────────────────────────────── */}
       <a
-        href="/"
+        href={from || "/"}
         className="eyebrow mb-6 inline-flex items-center gap-1.5 transition-colors"
         style={{ color: "var(--ink-soft)" }}
       >
-        ← Browse
+        ← Back to results
       </a>
 
       {/* ── Hero card ───────────────────────────────────────────── */}
@@ -146,6 +150,12 @@ export default async function OpportunityDetailsPage({
           )}
           <div className="absolute top-4 right-4 z-10">
             <SaveButton id={opp._id} />
+          </div>
+          {/* Application tracking — shown below the image on the detail page */}
+          <div className="absolute bottom-4 left-4 right-4 z-10">
+            <div className="rounded-xl px-3 py-2" style={{ background: "rgba(255,255,255,0.92)", backdropFilter: "blur(4px)" }}>
+              <DetailTracker opportunityId={opp._id} />
+            </div>
           </div>
           <DetailImage opp={opp} />
         </div>

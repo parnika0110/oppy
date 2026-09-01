@@ -1,7 +1,7 @@
 import { Suspense } from "react";
-import FilterBar from "@/components/FilterBar";
-import RefinePanel from "@/components/RefinePanel";
+import DiscoveryFilters from "@/components/DiscoveryFilters";
 import OpportunityCard from "@/components/OpportunityCard";
+import OppyEmptyState from "@/components/OppyEmptyState";
 import LandingPage from "@/components/LandingPage";
 import { OpportunityDocument } from "@/types/opportunity";
 import { publicOpportunityFilter, opportunitySort, buildCandidateFilter } from "@/lib/opportunities";
@@ -187,6 +187,7 @@ export default async function HomePage({
   const hasPreferenceParams = !!(params.categories || params.interests || params.experience);
   const hasTraditionalFilters = !!(params.q || params.category || params.location || params.tag || (params.remote && !hasPreferenceParams) || params.showClosed || params.sort);
   const hasFilters = hasPreferenceParams || hasTraditionalFilters;
+  const isPreferenceSearch = hasPreferenceParams;
 
   // ── Landing page (no filters) ──────────────────────────────────
   if (!hasFilters) {
@@ -222,8 +223,19 @@ export default async function HomePage({
 
     return (
       <div>
-        {/* Preference summary header */}
+        {/* Unified filter panel */}
         <div className="mb-6">
+          <Suspense
+            fallback={
+              <div className="h-16 rounded-2xl skeleton" style={{ border: "1px solid var(--line)" }} />
+            }
+          >
+            <DiscoveryFilters />
+          </Suspense>
+        </div>
+
+        {/* Preference summary header */}
+        <div className="mb-4">
           <p className="eyebrow mb-2">Your discovery</p>
           <h1
             className="font-display font-semibold tracking-tight"
@@ -231,24 +243,6 @@ export default async function HomePage({
           >
             {summary.message}
           </h1>
-          {activeLabels.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {activeLabels.map((label) => (
-                <span
-                  key={label}
-                  className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
-                  style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    background: "var(--lavender)",
-                    color: "#4A3F8A",
-                    border: "1px solid var(--lavender-deep)",
-                  }}
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
-          )}
           {summary.level === "related" && (
             <p className="mt-2 text-sm" style={{ color: "var(--ink-soft)" }}>
               No exact matches — showing the closest results.
@@ -259,22 +253,7 @@ export default async function HomePage({
               Showing broader results since exact matches were limited.
             </p>
           )}
-          <p className="mt-1 text-xs" style={{ color: "var(--ink-soft)", fontFamily: "'JetBrains Mono', monospace" }}>
-            Results ranked by relevance • Updated regularly from source platforms
-          </p>
         </div>
-
-        {/* Refine panel (collapsible) */}
-        <Suspense
-          fallback={
-            <div
-              className="h-16 rounded-2xl skeleton mb-4"
-              style={{ border: "1px solid var(--line)" }}
-            />
-          }
-        >
-          <RefinePanel />
-        </Suspense>
 
         <div className="mt-4 mb-4 flex items-center justify-between gap-4">
           <p className="eyebrow">
@@ -287,29 +266,14 @@ export default async function HomePage({
           )}
         </div>
 
-        {items.length === 0 ? (
-          <div
-            className="mt-8 py-20 text-center rounded-2xl"
-            style={{ background: "var(--card)", border: "1px solid var(--line)" }}
-          >
-            <p className="font-display font-semibold text-lg" style={{ color: "var(--ink)" }}>
-              No opportunities found
-            </p>
-            <p className="mt-2 text-sm" style={{ color: "var(--ink-soft)" }}>
-              Try broadening your preferences or clearing some filters.
-            </p>
-            <a
-              href="/"
-              className="mt-5 inline-block text-sm font-medium px-4 py-2 rounded-full"
-              style={{
-                background: "var(--ink)",
-                color: "var(--paper)",
-                fontFamily: "'Space Grotesk', sans-serif",
-              }}
-            >
-              Start over
-            </a>
-          </div>
+        {items.length === 0 ? (            <div className="mt-8">
+              <OppyEmptyState
+                mood="no-results"
+                title="No opportunities found"
+                description="Try broadening your preferences or clearing some filters."
+                action={{ label: "Start over", href: "/" }}
+              />
+            </div>
         ) : (
           <>
             {/* Best matches section */}
@@ -409,18 +373,17 @@ export default async function HomePage({
 
   return (
     <div>
-      <Suspense
-        fallback={
-          <div
-            className="h-24 rounded-2xl skeleton"
-            style={{ border: "1px solid var(--line)" }}
-          />
-        }
-      >
-        <FilterBar />
-      </Suspense>
+      <div className="mb-6">
+        <Suspense
+          fallback={
+            <div className="h-16 rounded-2xl skeleton" style={{ border: "1px solid var(--line)" }} />
+          }
+        >
+          <DiscoveryFilters />
+        </Suspense>
+      </div>
 
-      <div className="mt-6 mb-4 flex items-center justify-between gap-4">
+      <div className="mb-4 flex items-center justify-between gap-4">
         <p className="eyebrow">
           {pagination.total} result{pagination.total !== 1 ? "s" : ""}
         </p>
@@ -432,27 +395,13 @@ export default async function HomePage({
       </div>
 
       {items.length === 0 ? (
-        <div
-          className="mt-8 py-20 text-center rounded-2xl"
-          style={{ background: "var(--card)", border: "1px solid var(--line)" }}
-        >
-          <p className="font-display font-semibold text-lg" style={{ color: "var(--ink)" }}>
-            No opportunities found
-          </p>
-          <p className="mt-2 text-sm" style={{ color: "var(--ink-soft)" }}>
-            Try broadening your search or clearing some filters.
-          </p>
-          <a
-            href="/"
-            className="mt-5 inline-block text-sm font-medium px-4 py-2 rounded-full"
-            style={{
-              background: "var(--ink)",
-              color: "var(--paper)",
-              fontFamily: "'Space Grotesk', sans-serif",
-            }}
-          >
-            Clear filters
-          </a>
+        <div className="mt-8">
+          <OppyEmptyState
+            mood="no-results"
+            title="No opportunities found"
+            description="Try broadening your search or clearing some filters."
+            action={{ label: "Clear filters", href: "/" }}
+          />
         </div>
       ) : (
         <>

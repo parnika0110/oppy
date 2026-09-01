@@ -85,10 +85,15 @@ export default function LandingPage({ liveOpps, activeCount }: { liveOpps: Oppor
       <section className="lp-strip" aria-label="Categories">
         <div className="lp-strip-inner">
           {[...CATEGORIES, ...CATEGORIES].map((cat, i) => (
-            <span key={i} className="lp-strip-item">
+            <a
+              key={i}
+              href={`/?category=${encodeURIComponent(cat)}&sort=recommended`}
+              className="lp-strip-item"
+              style={{ textDecoration: "none", color: "inherit", cursor: "pointer" }}
+            >
               {cat}
               <span className="lp-strip-dot">·</span>
-            </span>
+            </a>
           ))}
         </div>
       </section>
