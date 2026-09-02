@@ -54,8 +54,12 @@ const FAVICON_PATTERNS = [
 // These are typically 16-64px and not suitable for card display.
 const LOW_QUALITY_PATTERNS = [
   // Logo/thumbnail size hints in URL path
-  /[-\/]logo\d*\.(png|jpg|jpeg|svg|gif|webp)/i,
-  /[-\/]icon\d*\.(png|jpg|jpeg|svg|gif|webp)/i,
+  // Catches: logo.png, logo32.png, logo_dark.png, google_logo_dark.png
+  // Excludes: logo-open-graph-1200x1200.png (high-quality OG images with dimensions)
+  /[-\/_]logo(?!-\w*-\d{3,}x\d{3,})[_]?\w*\.(png|jpg|jpeg|svg|gif|webp)/i,
+  // URL-encoded slash: /logo%2F... (directory containing logos)
+  /logo%2[fF][^/]*\.(png|jpg|jpeg|svg|gif|webp)/i,
+  /[-\/]icon[_]?\d*\.(png|jpg|jpeg|svg|gif|webp)/i,
   /[-\/]thumb\w*\.(png|jpg|jpeg|svg|gif|webp)/i,
   /[-\/]avatar\d*\.(png|jpg|jpeg|svg|gif|webp)/i,
   /[-\/]badge\d*\.(png|jpg|jpeg|svg|gif|webp)/i,

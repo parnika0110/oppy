@@ -38,15 +38,18 @@ interface GoogleUserInfo {
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const OAUTH_SECRET = process.env.SESSION_SECRET || process.env.ADMIN_SECRET || "";
-const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/google/callback`;
+// redirect_uri is derived from request.url in the handler — not hardcoded here.
+// This avoids the localhost fallback issue and works for any deployed domain.
 
 const OAUTH_STATE_COOKIE = "oppy_oauth_state";
 
-function getOAuthConfig() {
+function getOAuthConfig(requestUrl: string) {
+  // Derive redirect_uri from the actual request URL — avoids localhost fallback
+  const origin = new URL(requestUrl).origin;
   return {
     clientId: GOOGLE_CLIENT_ID,
     clientSecret: GOOGLE_CLIENT_SECRET,
-    redirectUri: REDIRECT_URI,
+    redirectUri: `${origin}/api/auth/google/callback`,
   };
 }
 
@@ -192,7 +195,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Check OAuth configuration
-  const config = getOAuthConfig();
+  const config = getOAuthConfig(request.url);
   if (!config.clientId || !config.clientSecret) {
     console.error("[Google OAuth] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET");
     const loginUrl = new URL("/login", request.url);

@@ -115,12 +115,11 @@ export async function refreshOpportunityLifecycle(): Promise<LifecycleResult> {
   // ── Close expired opportunities ────────────────────────────────────
   // Only touches active records with verified/passed actionable dates.
   // Archived records are never touched.
+  // Catch ALL active opportunities — including records where lifecycleStatus
+  // is inconsistent with isActive (e.g., lifecycleStatus='closed' but isActive=true).
   const cursor = collection.find({
+    isActive: true,
     lifecycleStatus: { $ne: "archived" },
-    $or: [
-      { lifecycleStatus: "active" },
-      { lifecycleStatus: { $exists: false }, isActive: true },
-    ],
   });
 
   for await (const opportunity of cursor) {
