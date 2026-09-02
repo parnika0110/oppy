@@ -101,7 +101,15 @@ async function getRecentlyViewed(userId: string): Promise<OpportunityDocument[]>
 
     if (views.length === 0) return [];
 
-    const oppIds = views
+    // Deduplicate by opportunityId — a user may view the same opportunity multiple times
+    const seen = new Set<string>();
+    const uniqueViews = views.filter((v: any) => {
+      if (seen.has(v.opportunityId)) return false;
+      seen.add(v.opportunityId);
+      return true;
+    });
+
+    const oppIds = uniqueViews
       .map((v) => {
         try { return new ObjectId(v.opportunityId); } catch { return null; }
       })
@@ -113,7 +121,7 @@ async function getRecentlyViewed(userId: string): Promise<OpportunityDocument[]>
     const docs = await opportunities.find({ _id: { $in: oppIds } }).toArray();
     const byId = new Map(docs.map((d) => [d._id.toString(), d]));
 
-    return views
+    return uniqueViews
       .map((v) => byId.get(v.opportunityId))
       .filter((d): d is NonNullable<typeof d> => Boolean(d))
       .map(serialize);
@@ -183,21 +191,55 @@ export default async function DashboardPage() {
   const firstName = user.name.split(" ")[0];
 
   // Personalized recommendations using the stronger relevance scoring system
+  // Resolve taxonomy entries for canonical matching (handles legacy free-text values)
+  const { resolveInterests, resolveSkills, resolveLocations } = await import("@/lib/taxonomies");
+  const rawInterests = user.preferences?.interests || [];
+  const normalizedInterests = resolveInterests(rawInterests);
+  const rawSkills = user.preferences?.skills || [];
+  const normalizedSkills = resolveSkills(rawSkills);
+  const rawLocations = user.preferences?.locations || [];
+  const normalizedLocations = resolveLocations(rawLocations);
+
   const prefs: DiscoveryPreferences = {
     categories: user.preferences?.categories?.length ? user.preferences.categories : undefined,
-    interests: user.preferences?.interests?.length ? user.preferences.interests : undefined,
-    location: user.preferences?.locations?.length ? user.preferences.locations[0] : undefined,
+    interests: normalizedInterests.length > 0 ? normalizedInterests : undefined,
+    skills: normalizedSkills.length > 0 ? normalizedSkills : undefined,
+    location: normalizedLocations.length > 0 ? normalizedLocations[0] : undefined,
     remote: user.preferences?.remote === true,
     experience: user.preferences?.experience || undefined,
+    // Resume-derived signals (lower weight than explicit preferences)
+    resumeSkills: user.resumeProfile?.extractedSkills,
+    resumeInterests: user.resumeProfile?.extractedInterests,
+    resumeDomains: user.resumeProfile?.domains,
   };
 
-  const hasPrefs = Boolean(prefs.categories?.length || prefs.interests?.length || prefs.location || prefs.remote || prefs.experience);
+  const hasPrefs = Boolean(prefs.categories?.length || prefs.interests?.length || prefs.skills?.length || prefs.location || prefs.remote || prefs.experience);
 
   let recommendedItems: OpportunityDocument[];
   const explanations = new Map<string, string[]>();
 
   if (hasPrefs) {
-    const ranked = rankOpportunities(allActive, prefs);
+    // For multi-location users, score against each location and take the best ranking
+    const locations = normalizedLocations;
+    let ranked;
+    if (locations.length > 1) {
+      // Score with each location, merge and deduplicate by taking the best score per opportunity
+      const byId = new Map<string, { opp: typeof allActive[0]; bestTotal: number; bestRanked: ReturnType<typeof rankOpportunities>[0] }>();
+      for (const loc of locations) {
+        const locPrefs = { ...prefs, location: loc };
+        const locRanked = rankOpportunities(allActive, locPrefs);
+        for (const r of locRanked) {
+          const id = r.opportunity._id;
+          const existing = byId.get(id);
+          if (!existing || r.score.total > existing.bestTotal) {
+            byId.set(id, { opp: r.opportunity, bestTotal: r.score.total, bestRanked: r });
+          }
+        }
+      }
+      ranked = Array.from(byId.values()).map((v) => v.bestRanked).sort((a, b) => b.score.total - a.score.total);
+    } else {
+      ranked = rankOpportunities(allActive, prefs);
+    }
     recommendedItems = ranked.slice(0, 6).map((r) => r.opportunity);
     // Build explanations from the same scoring system used for ranking
     for (const r of ranked.slice(0, 6)) {

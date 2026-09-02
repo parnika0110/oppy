@@ -19,10 +19,15 @@ import type { OpportunityDocument } from "@/types/opportunity";
 export interface DiscoveryPreferences {
   categories?: string[];
   interests?: string[];
+  skills?: string[];
   location?: string;
   remote?: boolean;
   experience?: string;
   q?: string;
+  // Resume-derived signals (lower weight than explicit preferences)
+  resumeSkills?: string[];
+  resumeInterests?: string[];
+  resumeDomains?: string[];
 }
 
 export interface RelevanceScore {
@@ -173,6 +178,72 @@ export function scoreOpportunity(
     }
   } else {
     interests = 3; // Baseline when no interests selected
+  }
+
+  // ── SKILLS: additional interest-like signal from user's declared skills ──
+  // Skills are not in the interest taxonomy but should boost matching opportunities.
+  // Only applied when interests were NOT already providing a strong signal.
+  if (prefs.skills && prefs.skills.length > 0 && interests < 10) {
+    const oppText = `${opp.title} ${(opp.tags || []).join(" ")} ${opp.description || ""} ${opp.organization || ""}`.toLowerCase();
+    let maxSkillScore = 0;
+    for (const skill of prefs.skills) {
+      const skillLower = skill.toLowerCase().trim();
+      if (!skillLower || skillLower.length < 2) continue;
+      // Direct substring match in title/tags gets high score
+      const titleHit = opp.title.toLowerCase().includes(skillLower);
+      const tagHit = opp.tags?.some(t => t.toLowerCase().includes(skillLower)) ?? false;
+      if (titleHit) maxSkillScore = Math.max(maxSkillScore, 20);
+      else if (tagHit) maxSkillScore = Math.max(maxSkillScore, 15);
+      else if (oppText.includes(skillLower)) maxSkillScore = Math.max(maxSkillScore, 8);
+      // Also check taxonomy keywords that map to this skill
+      for (const [, def] of Object.entries(INTEREST_TAXONOMY)) {
+        if (def.keywords.some(kw => kw === skillLower || skillLower.includes(kw))) {
+          // Skill maps to a taxonomy interest — check if opportunity matches those keywords
+          for (const kw of def.keywords.slice(0, 8)) {
+            if (textContainsKeyword(oppText, kw)) { maxSkillScore = Math.max(maxSkillScore, 10); break; }
+          }
+        }
+      }
+    }
+    if (maxSkillScore > interests) interests = maxSkillScore;
+  }
+
+  // ── RESUME SIGNALS: supplementary matching from parsed resume ─────────
+  // Resume-derived signals have lower weight than explicit user preferences.
+  // They provide context but never override explicit choices.
+  if (interests < 15 && (prefs.resumeSkills?.length || prefs.resumeInterests?.length || prefs.resumeDomains?.length)) {
+    const oppText = `${opp.title} ${(opp.tags || []).join(" ")} ${opp.description || ""} ${opp.organization || ""}`.toLowerCase();
+    let resumeScore = 0;
+
+    // Resume skills (weight: up to 10)
+    if (prefs.resumeSkills) {
+      for (const skill of prefs.resumeSkills) {
+        const skillLower = skill.toLowerCase();
+        if (opp.title.toLowerCase().includes(skillLower)) resumeScore = Math.max(resumeScore, 10);
+        else if (opp.tags?.some(t => t.toLowerCase().includes(skillLower))) resumeScore = Math.max(resumeScore, 8);
+        else if (oppText.includes(skillLower)) resumeScore = Math.max(resumeScore, 5);
+      }
+    }
+
+    // Resume interests (weight: up to 8)
+    if (prefs.resumeInterests) {
+      for (const interest of prefs.resumeInterests) {
+        const match = textMatchesInterest(oppText, interest);
+        if (match === "strong") resumeScore = Math.max(resumeScore, 8);
+        else if (match === "related") resumeScore = Math.max(resumeScore, 5);
+      }
+    }
+
+    // Resume domains (weight: up to 6)
+    if (prefs.resumeDomains) {
+      for (const domain of prefs.resumeDomains) {
+        const domainLower = domain.toLowerCase();
+        if (oppText.includes(domainLower)) resumeScore = Math.max(resumeScore, 6);
+      }
+    }
+
+    // Only boost if resume signal is meaningful and doesn't conflict with explicit
+    if (resumeScore > interests) interests = resumeScore;
   }
 
   // ── LOCATION: proper hierarchy with explicit preference respect ───────

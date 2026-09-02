@@ -48,6 +48,8 @@ export async function PATCH(request: NextRequest) {
     if (body.locations !== undefined) update["preferences.locations"] = body.locations;
     if (body.remote !== undefined) update["preferences.remote"] = body.remote;
     if (body.skills !== undefined) update["preferences.skills"] = body.skills;
+    // Accept resume profile updates
+    if (body.resumeProfile !== undefined) update.resumeProfile = body.resumeProfile;
     // Accept both camelCase (from frontend) and snake_case (legacy)
     const onboardingFlag = body.onboardingComplete ?? body.onboarding_complete;
     if (onboardingFlag !== undefined) update.onboardingComplete = Boolean(onboardingFlag);
