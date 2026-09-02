@@ -5,6 +5,76 @@ import ThemedOppyOrb from "@/components/ThemedOppyOrb";
 import SearchBar from "@/components/SearchBar";
 import { OpportunityDocument } from "@/types/opportunity";
 
+// ── Hero card helpers ───────────────────────────────────────────────────
+
+/** Category → pastel background + text color for hero cards. */
+const HERO_CAT_COLORS: Record<string, { bg: string; fg: string }> = {
+  Hackathon:   { bg: "var(--lavender)", fg: "#4A3F8A" },
+  Fellowship:  { bg: "var(--sage)",     fg: "#2E5A28" },
+  Internship:  { bg: "var(--peach)",    fg: "#7A4A1A" },
+  Event:       { bg: "#F0E8FF",         fg: "#5B3D8A" },
+  Scholarship: { bg: "var(--blue)",     fg: "#1F4A62" },
+  Grant:       { bg: "var(--blue)",     fg: "#1F4A62" },
+  Job:         { bg: "var(--sage)",     fg: "#1F5A3A" },
+};
+
+const DEFAULT_HERO_COLOR = { bg: "var(--lavender)", fg: "#4A3F8A" };
+
+/** Rotations for each card slot (keeps the scattered feel). */
+const HERO_ROTATIONS = ["-2deg", "2deg", "-1deg", "3deg", "-2deg"];
+
+/** Format a short location string for the hero card meta line. */
+function heroMeta(opp: OpportunityDocument): string {
+  const loc = opp.location || "";
+  // Show location, or a deadline hint
+  if (opp.eventDate) {
+    try {
+      const d = new Date(opp.eventDate);
+      const now = new Date();
+      const diff = d.getTime() - now.getTime();
+      if (diff > 0 && diff < 7 * 24 * 60 * 60 * 1000) return `${loc || "Online"} · This week`;
+      return `${loc || "Online"} · ${new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(d)}`;
+    } catch { /* fall through */ }
+  }
+  if (opp.applicationDeadline || opp.deadline) {
+    try {
+      const dl = new Date(opp.applicationDeadline || opp.deadline!);
+      const now = new Date();
+      const diff = dl.getTime() - now.getTime();
+      if (diff > 0 && diff < 7 * 24 * 60 * 60 * 1000) return `${loc || ""} · Closing soon`;
+      if (diff > 0) return `${loc || ""} · ${new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(dl)}`;
+    } catch { /* fall through */ }
+  }
+  return loc || "Various locations";
+}
+
+/**
+ * Select up to 5 diverse opportunities for the hero cards.
+ * Strategy: pick one from each preferred category if available,
+ * then fill remaining slots with any high-scored opportunities.
+ */
+function selectHeroCards(opps: OpportunityDocument[]): OpportunityDocument[] {
+  if (opps.length === 0) return [];
+  const preferred = ["Hackathon", "Fellowship", "Internship", "Event", "Scholarship"];
+  const used = new Set<string>();
+  const selected: OpportunityDocument[] = [];
+
+  // Pass 1: one per preferred category
+  for (const cat of preferred) {
+    if (selected.length >= 5) break;
+    const match = opps.find(o => o.category === cat && !used.has(o._id));
+    if (match) { selected.push(match); used.add(match._id); }
+  }
+
+  // Pass 2: fill remaining slots from any remaining opps
+  for (const opp of opps) {
+    if (selected.length >= 5) break;
+    if (!used.has(opp._id)) { selected.push(opp); used.add(opp._id); }
+  }
+
+  return selected;
+}
+
 const CATEGORIES = [
   "Internships",
   "Hackathons",
@@ -61,38 +131,24 @@ export default function LandingPage({ liveOpps, activeCount }: { liveOpps: Oppor
             )}
           </div>
 
-          {/* Right: floating opportunity cards — each in its own grid cell */}
+          {/* Right: floating opportunity cards — real active opportunities */}
           <div className="lp-hero-visual">
-            {/* Card 1 — Hackathon (upper-left) */}
-            <div className="lp-hero-card" style={{ transform: "rotate(-2deg)" }}>
-              <span className="lp-hero-card-cat" style={{ background: "var(--lavender)", color: "#4A3F8A" }}>Hackathon</span>
-              <p className="lp-hero-card-title">Build something people use.</p>
-              <p className="lp-hero-card-meta">Bengaluru · Sep 14</p>
-            </div>
-            {/* Card 2 — Fellowship (upper-right) */}
-            <div className="lp-hero-card" style={{ transform: "rotate(2deg)" }}>
-              <span className="lp-hero-card-cat" style={{ background: "var(--sage)", color: "#2E5A28" }}>Fellowship</span>
-              <p className="lp-hero-card-title">Open Source Mentorship</p>
-              <p className="lp-hero-card-meta">Rolling · Global</p>
-            </div>
-            {/* Card 3 — Internship (middle-right) */}
-            <div className="lp-hero-card" style={{ transform: "rotate(-1deg)" }}>
-              <span className="lp-hero-card-cat" style={{ background: "var(--peach)", color: "#7A4A1A" }}>Internship</span>
-              <p className="lp-hero-card-title">Software Engineering Intern</p>
-              <p className="lp-hero-card-meta">Remote · Closing soon</p>
-            </div>
-            {/* Card 4 — Event (lower-left) */}
-            <div className="lp-hero-card" style={{ transform: "rotate(3deg)" }}>
-              <span className="lp-hero-card-cat" style={{ background: "#F0E8FF", color: "#5B3D8A" }}>Event</span>
-              <p className="lp-hero-card-title">AI × Builders</p>
-              <p className="lp-hero-card-meta">This weekend</p>
-            </div>
-            {/* Card 5 — Scholarship (lower-right) */}
-            <div className="lp-hero-card" style={{ transform: "rotate(-2deg)" }}>
-              <span className="lp-hero-card-cat" style={{ background: "var(--blue)", color: "#1F4A62" }}>Scholarship</span>
-              <p className="lp-hero-card-title">Undergraduate Research Grant</p>
-              <p className="lp-hero-card-meta">Deadline Oct 3</p>
-            </div>
+            {selectHeroCards(liveOpps).map((opp, i) => {
+              const colors = HERO_CAT_COLORS[opp.category] || DEFAULT_HERO_COLOR;
+              return (
+                <div
+                  key={opp._id}
+                  className="lp-hero-card"
+                  style={{ transform: `rotate(${HERO_ROTATIONS[i] || "0deg"})` }}
+                >
+                  <span className="lp-hero-card-cat" style={{ background: colors.bg, color: colors.fg }}>
+                    {opp.category}
+                  </span>
+                  <p className="lp-hero-card-title">{opp.title}</p>
+                  <p className="lp-hero-card-meta">{heroMeta(opp)}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
