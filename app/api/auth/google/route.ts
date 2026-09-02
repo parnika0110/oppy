@@ -18,6 +18,34 @@ const OAUTH_SECRET = process.env.SESSION_SECRET || process.env.ADMIN_SECRET || "
 const OAUTH_STATE_COOKIE = "oppy_oauth_state";
 const STATE_MAX_AGE = 5 * 60; // 5 minutes
 
+/**
+ * Get the public-facing origin.
+ *
+ * Priority:
+ * 1. APP_URL env var (most secure — server-side only, not inlined at build time)
+ * 2. x-forwarded-host / x-forwarded-proto headers (set by CloudFront on Amplify)
+ * 3. Host header (for local development)
+ * * Security: On Amplify, CloudFront controls these headers and clients cannot
+ * inject values. The .split(",")[0] guards against multi-value header injection
+ * if behind a naive proxy. In production, localhost is rejected as a safety net.
+ */
+function getPublicOrigin(request: NextRequest): string {
+  // Most secure: explicit server-side env var (no header dependency)
+  if (process.env.APP_URL) return process.env.APP_URL;
+
+  // Derive from headers — take only the first value to prevent injection
+  const proto = (request.headers.get("x-forwarded-proto") || "https").split(",")[0].trim();
+  const host = (request.headers.get("x-forwarded-host") || request.headers.get("host") || "localhost:3000").split(",")[0].trim();
+  const origin = `${proto}://${host}`;
+
+  // Defense-in-depth: reject localhost in production (indicates misconfiguration)
+  if (process.env.NODE_ENV === "production" && /^https?:\/\/localhost/i.test(origin)) {
+    console.error("[OAuth] Production request resolved to localhost origin — APP_URL env var recommended");
+  }
+
+  return origin;
+}
+
 /** Generate an HMAC-signed state token that encodes the redirect target. */
 function signState(next: string): string {
   const nonce = crypto.randomBytes(16).toString("hex");
@@ -36,14 +64,14 @@ function isSafeRedirect(path: string): boolean {
 export async function GET(request: NextRequest) {
   if (!GOOGLE_CLIENT_ID) {
     console.error("[Google OAuth] GOOGLE_CLIENT_ID not configured");
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", getPublicOrigin(request));
     loginUrl.searchParams.set("error", "Google sign-in is not configured.");
     return NextResponse.redirect(loginUrl);
   }
 
   if (!OAUTH_SECRET) {
     console.error("[Google OAuth] SESSION_SECRET not configured — cannot sign state");
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", getPublicOrigin(request));
     loginUrl.searchParams.set("error", "Google sign-in is not configured.");
     return NextResponse.redirect(loginUrl);
   }
@@ -52,16 +80,16 @@ export async function GET(request: NextRequest) {
 
   // Validate redirect target — prevent open redirects to external sites
   if (!isSafeRedirect(next)) {
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", getPublicOrigin(request));
     loginUrl.searchParams.set("error", "Invalid redirect target.");
     return NextResponse.redirect(loginUrl);
   }
 
   const state = signState(next);
-  // Derive redirect_uri from the actual request URL — works for any deployed domain
-  // without requiring NEXT_PUBLIC_APP_URL to be set correctly in every environment.
-  const requestOrigin = new URL(request.url).origin;
-  const REDIRECT_URI = `${requestOrigin}/api/auth/google/callback`;
+  // Derive redirect_uri from request headers — request.url on Amplify/Lambda
+  // resolves to the internal localhost URL, not the public domain.
+  const publicOrigin = getPublicOrigin(request);
+  const REDIRECT_URI = `${publicOrigin}/api/auth/google/callback`;
 
   const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authorizationUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID);

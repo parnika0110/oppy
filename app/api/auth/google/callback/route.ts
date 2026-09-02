@@ -38,14 +38,38 @@ interface GoogleUserInfo {
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const OAUTH_SECRET = process.env.SESSION_SECRET || process.env.ADMIN_SECRET || "";
-// redirect_uri is derived from request.url in the handler — not hardcoded here.
-// This avoids the localhost fallback issue and works for any deployed domain.
 
 const OAUTH_STATE_COOKIE = "oppy_oauth_state";
 
-function getOAuthConfig(requestUrl: string) {
-  // Derive redirect_uri from the actual request URL — avoids localhost fallback
-  const origin = new URL(requestUrl).origin;
+/**
+ * Get the public-facing origin.
+ *
+ * Priority:
+ * 1. APP_URL env var (most secure — server-side only, not inlined at build time)
+ * 2. x-forwarded-host / x-forwarded-proto headers (set by CloudFront on Amplify)
+ * 3. Host header (for local development)
+ * * Security: On Amplify, CloudFront controls these headers and clients cannot
+ * inject values. The .split(",")[0] guards against multi-value header injection
+ * if behind a naive proxy. In production, localhost is rejected as a safety net.
+ */
+function getPublicOrigin(request: NextRequest): string {
+  // Most secure: explicit server-side env var (no header dependency)
+  if (process.env.APP_URL) return process.env.APP_URL;
+
+  // Derive from headers — take only the first value to prevent injection
+  const proto = (request.headers.get("x-forwarded-proto") || "https").split(",")[0].trim();
+  const host = (request.headers.get("x-forwarded-host") || request.headers.get("host") || "localhost:3000").split(",")[0].trim();
+  const origin = `${proto}://${host}`;
+
+  // Defense-in-depth: reject localhost in production (indicates misconfiguration)
+  if (process.env.NODE_ENV === "production" && /^https?:\/\/localhost/i.test(origin)) {
+    console.error("[OAuth] Production request resolved to localhost origin — APP_URL env var recommended");
+  }
+
+  return origin;
+}
+
+function getOAuthConfig(origin: string) {
   return {
     clientId: GOOGLE_CLIENT_ID,
     clientSecret: GOOGLE_CLIENT_SECRET,
@@ -162,7 +186,7 @@ export async function GET(request: NextRequest) {
   // This ensures the callback is consumed by the same browser that initiated the flow.
   if (!returnedState || !cookieState || returnedState !== cookieState) {
     console.error("[Google OAuth] State mismatch — possible CSRF attempt. returnedState exists:", !!returnedState, "cookieState exists:", !!cookieState);
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", getPublicOrigin(request));
     loginUrl.searchParams.set("error", "Session expired or invalid. Please try again.");
     const response = NextResponse.redirect(loginUrl);
     clearStateCookie(response);
@@ -179,7 +203,7 @@ export async function GET(request: NextRequest) {
   // Handle OAuth errors (user cancelled, denied access, etc.)
   if (error) {
     console.error("[Google OAuth] User denied or error:", error);
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", getPublicOrigin(request));
     loginUrl.searchParams.set("error", "Google sign-in was cancelled.");
     const response = NextResponse.redirect(loginUrl);
     clearStateCookie(response);
@@ -187,7 +211,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!code) {
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", getPublicOrigin(request));
     loginUrl.searchParams.set("error", "Missing authorization code.");
     const response = NextResponse.redirect(loginUrl);
     clearStateCookie(response);
@@ -195,10 +219,11 @@ export async function GET(request: NextRequest) {
   }
 
   // Check OAuth configuration
-  const config = getOAuthConfig(request.url);
+  const publicOrigin = getPublicOrigin(request);
+  const config = getOAuthConfig(publicOrigin);
   if (!config.clientId || !config.clientSecret) {
     console.error("[Google OAuth] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET");
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", getPublicOrigin(request));
     loginUrl.searchParams.set("error", "Google sign-in is not configured.");
     const response = NextResponse.redirect(loginUrl);
     clearStateCookie(response);
@@ -209,7 +234,7 @@ export async function GET(request: NextRequest) {
   const rlKey = getRateLimitKey(request, "google-oauth");
   const rl = checkRateLimit(rlKey, 20, 15 * 60 * 1000);
   if (!rl.allowed) {
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", getPublicOrigin(request));
     loginUrl.searchParams.set("error", "Too many attempts. Please try again later.");
     const response = NextResponse.redirect(loginUrl);
     clearStateCookie(response);
@@ -228,7 +253,7 @@ export async function GET(request: NextRequest) {
     const googleUser = await verifyAndGetUserInfo(tokenRes.access_token);
 
     if (!googleUser.email || !googleUser.email_verified) {
-      const loginUrl = new URL("/login", request.url);
+      const loginUrl = new URL("/login", getPublicOrigin(request));
       loginUrl.searchParams.set("error", "Google account email is not verified.");
       const response = NextResponse.redirect(loginUrl);
       clearStateCookie(response);
@@ -281,7 +306,7 @@ export async function GET(request: NextRequest) {
     // Step 5: Set session cookie and redirect
     const destination = isNewUser ? "/onboarding" : redirectTo;
 
-    const response = NextResponse.redirect(new URL(destination, request.url));
+    const response = NextResponse.redirect(new URL(destination, getPublicOrigin(request)));
 
     response.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,
@@ -297,7 +322,7 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (err) {
     console.error("[Google OAuth] Callback error:", err);
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", getPublicOrigin(request));
     loginUrl.searchParams.set("error", "Google sign-in failed. Please try again.");
     const response = NextResponse.redirect(loginUrl);
     clearStateCookie(response);
