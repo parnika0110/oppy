@@ -65,10 +65,24 @@ describe("isLowQualityImageUrl", () => {
     expect(isLowQualityImageUrl("https://example.com/img.jpg?w=64")).toBe(true);
   });
 
+  it("rejects logo files with underscores", () => {
+    expect(isLowQualityImageUrl("https://www.gstatic.com/hiring/CportalUi/google_logo_dark.png")).toBe(true);
+    expect(isLowQualityImageUrl("https://cdn.co/logo_foo.png")).toBe(true);
+  });
+
+  it("rejects logo directory paths", () => {
+    expect(isLowQualityImageUrl("https://internshala-uploads.internshala.com/logo%2Fbiuykoo16hd.jpg")).toBe(true);
+  });
+
   it("does NOT reject high-quality images", () => {
     expect(isLowQualityImageUrl("https://cdn.example.com/cover.jpg")).toBe(false);
     expect(isLowQualityImageUrl("https://images.unsplash.com/photo-123")).toBe(false);
     expect(isLowQualityImageUrl("https://example.com/event-banner.png")).toBe(false);
+  });
+
+  it("does NOT reject high-quality OG images with logo in filename", () => {
+    // outreachy-logo-open-graph-1200x1200 is a large OG image, not a tiny logo
+    expect(isLowQualityImageUrl("https://www.outreachy.org/static/outreachy-logo-open-graph-1200x1200.png")).toBe(false);
   });
 
   it("handles edge cases", () => {

@@ -58,7 +58,10 @@ export async function GET(request: NextRequest) {
   }
 
   const state = signState(next);
-  const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/google/callback`;
+  // Derive redirect_uri from the actual request URL — works for any deployed domain
+  // without requiring NEXT_PUBLIC_APP_URL to be set correctly in every environment.
+  const requestOrigin = new URL(request.url).origin;
+  const REDIRECT_URI = `${requestOrigin}/api/auth/google/callback`;
 
   const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authorizationUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID);
