@@ -7,7 +7,9 @@ import { RawOpportunity, OpportunitySource, Category } from "@/types/opportunity
  * Required env: RAPIDAPI_KEY
  */
 
-const BASE_URL = "https://jsearch.p.rapidapi.com/search";
+import { detectJSearchEndpoint } from "@/lib/ingestion/jsearch-endpoint";
+
+const BASE_URL = "https://jsearch.p.rapidapi.com/search"; // fallback
 
 const WELLFOUND_QUERIES = [
   "site:wellfound.com Software Engineer",
@@ -99,10 +101,9 @@ export class WellfoundSource implements OpportunitySource {
   platform = "Other" as const;
 
   async fetch(): Promise<RawOpportunity[]> {
-    const apiKey = process.env.RAPIDAPI_KEY || process.env.JSEARCH_API_KEY;
-
-    if (!apiKey) {
-      console.warn("[Wellfound] RAPIDAPI_KEY not configured — skipping.");
+    const endpoint = await detectJSearchEndpoint();
+    if (!endpoint) {
+      console.warn("[Wellfound] No working JSearch endpoint — skipping.");
       return [];
     }
 
@@ -113,7 +114,7 @@ export class WellfoundSource implements OpportunitySource {
 
     for (const q of WELLFOUND_QUERIES) {
       try {
-        const url = new URL(BASE_URL);
+        const url = new URL(endpoint.url);
         url.searchParams.set("query", q);
         url.searchParams.set("num_pages", "1");
         url.searchParams.set("page", "1");
@@ -122,10 +123,7 @@ export class WellfoundSource implements OpportunitySource {
         url.searchParams.set("language", "en");
 
         const res = await fetch(url.toString(), {
-          headers: {
-            "X-RapidAPI-Key": apiKey,
-            "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
-          },
+          headers: endpoint.headers,
           next: { revalidate: 0 },
         });
 

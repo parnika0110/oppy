@@ -85,7 +85,9 @@ export class RemoteOKSource implements OpportunitySource {
 
       for (const job of jobs) {
         // Skip metadata and deleted jobs
-        if (!job || job._id === undefined || job.deleted) continue;
+        // RemoteOK uses 'id' (not '_id') for individual jobs;
+        // the first array entry is metadata with no id field.
+        if (!job || (job.id === undefined && job._id === undefined) || job.deleted) continue;
         if (job.legal === false) continue; // skip scammy listings
 
         const key = job.id || job.position;
