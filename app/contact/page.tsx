@@ -19,10 +19,10 @@ export default function ContactPage() {
         <p className="mb-6">
           Reach us at{" "}
           <a
-            href="mailto:hello@oppy.dev"
+            href="mailto:hello.oppy.in@gmail.com"
             style={{ color: "var(--accent-deep)", textDecoration: "underline" }}
           >
-            hello@oppy.dev
+            hello.oppy.in@gmail.com
           </a>
         </p>
         <div

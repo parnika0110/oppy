@@ -43,8 +43,8 @@ export default function PrivacyPage() {
         <h2 className="font-display font-semibold mt-8 mb-3" style={{ fontSize: "1.1rem", color: "var(--ink)" }}>Contact</h2>
         <p className="mb-4">
           For privacy-related inquiries, contact us at{" "}
-          <a href="mailto:hello@oppy.dev" style={{ color: "var(--accent-deep)", textDecoration: "underline" }}>
-            hello@oppy.dev
+          <a href="mailto:hello.oppy.in@gmail.com" style={{ color: "var(--accent-deep)", textDecoration: "underline" }}>
+            hello.oppy.in@gmail.com
           </a>.
         </p>
       </div>
