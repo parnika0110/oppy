@@ -68,7 +68,8 @@ export default function Nav() {
           </a>
           <a
             href="/signup"
-            className="underline-hover hover:text-[var(--ink)] transition-colors"
+            className="inline-flex items-center px-4 py-1.5 rounded-lg text-sm font-semibold transition-opacity hover:opacity-85"
+            style={{ background: "var(--ink)", color: "var(--paper)", textDecoration: "none" }}
           >
             Sign up
           </a>

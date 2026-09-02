@@ -61,39 +61,37 @@ export default function LandingPage({ liveOpps, activeCount }: { liveOpps: Oppor
             )}
           </div>
 
-          {/* Right: floating opportunity cards */}
+          {/* Right: floating opportunity cards — each in its own grid cell */}
           <div className="lp-hero-visual">
-            <div className="lp-hero-cards">
-              {/* Card 1 — Hackathon */}
-              <div className="lp-hero-card" style={{ transform: "rotate(-3deg) translateY(0)", zIndex: 3 }}>
-                <span className="lp-hero-card-cat" style={{ background: "var(--lavender)", color: "#4A3F8A" }}>Hackathon</span>
-                <p className="lp-hero-card-title">AI Builders Challenge</p>
-                <p className="lp-hero-card-meta">Bengaluru · Jan 2027</p>
-              </div>
-              {/* Card 2 — Fellowship */}
-              <div className="lp-hero-card" style={{ transform: "rotate(2deg) translate(20px, -12px)", zIndex: 2 }}>
-                <span className="lp-hero-card-cat" style={{ background: "var(--sage)", color: "#2E5A28" }}>Fellowship</span>
-                <p className="lp-hero-card-title">Open Source Mentorship</p>
-                <p className="lp-hero-card-meta">Remote · Global</p>
-              </div>
-              {/* Card 3 — Internship */}
-              <div className="lp-hero-card" style={{ transform: "rotate(-1deg) translate(8px, 16px)", zIndex: 4 }}>
-                <span className="lp-hero-card-cat" style={{ background: "var(--peach)", color: "#7A4A1A" }}>Internship</span>
-                <p className="lp-hero-card-title">Python Developer Intern</p>
-                <p className="lp-hero-card-meta">Remote · Beginner</p>
-              </div>
-              {/* Card 4 — Event */}
-              <div className="lp-hero-card" style={{ transform: "rotate(3deg) translate(-10px, 28px)", zIndex: 1 }}>
-                <span className="lp-hero-card-cat" style={{ background: "#F0E8FF", color: "#5B3D8A" }}>Event</span>
-                <p className="lp-hero-card-title">React Summit 2027</p>
-                <p className="lp-hero-card-meta">Amsterdam · Mar 2027</p>
-              </div>
-              {/* Card 5 — Scholarship */}
-              <div className="lp-hero-card" style={{ transform: "rotate(-2deg) translate(30px, 6px)", zIndex: 5 }}>
-                <span className="lp-hero-card-cat" style={{ background: "var(--blue)", color: "#1F4A62" }}>Scholarship</span>
-                <p className="lp-hero-card-title">Google Generation Scholarship</p>
-                <p className="lp-hero-card-meta">Global · Deadline Soon</p>
-              </div>
+            {/* Card 1 — Hackathon (upper-left) */}
+            <div className="lp-hero-card" style={{ transform: "rotate(-2deg)" }}>
+              <span className="lp-hero-card-cat" style={{ background: "var(--lavender)", color: "#4A3F8A" }}>Hackathon</span>
+              <p className="lp-hero-card-title">Build something people use.</p>
+              <p className="lp-hero-card-meta">Bengaluru · Sep 14</p>
+            </div>
+            {/* Card 2 — Fellowship (upper-right) */}
+            <div className="lp-hero-card" style={{ transform: "rotate(2deg)" }}>
+              <span className="lp-hero-card-cat" style={{ background: "var(--sage)", color: "#2E5A28" }}>Fellowship</span>
+              <p className="lp-hero-card-title">Open Source Mentorship</p>
+              <p className="lp-hero-card-meta">Rolling · Global</p>
+            </div>
+            {/* Card 3 — Internship (middle-right) */}
+            <div className="lp-hero-card" style={{ transform: "rotate(-1deg)" }}>
+              <span className="lp-hero-card-cat" style={{ background: "var(--peach)", color: "#7A4A1A" }}>Internship</span>
+              <p className="lp-hero-card-title">Software Engineering Intern</p>
+              <p className="lp-hero-card-meta">Remote · Closing soon</p>
+            </div>
+            {/* Card 4 — Event (lower-left) */}
+            <div className="lp-hero-card" style={{ transform: "rotate(3deg)" }}>
+              <span className="lp-hero-card-cat" style={{ background: "#F0E8FF", color: "#5B3D8A" }}>Event</span>
+              <p className="lp-hero-card-title">AI × Builders</p>
+              <p className="lp-hero-card-meta">This weekend</p>
+            </div>
+            {/* Card 5 — Scholarship (lower-right) */}
+            <div className="lp-hero-card" style={{ transform: "rotate(-2deg)" }}>
+              <span className="lp-hero-card-cat" style={{ background: "var(--blue)", color: "#1F4A62" }}>Scholarship</span>
+              <p className="lp-hero-card-title">Undergraduate Research Grant</p>
+              <p className="lp-hero-card-meta">Deadline Oct 3</p>
             </div>
           </div>
         </div>
