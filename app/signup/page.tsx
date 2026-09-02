@@ -47,7 +47,7 @@ export default function SignupPage() {
 
         {/* ── Google Sign-Up (prominent, above the fold) ── */}
         <a
-          href="/api/auth/google?next=/onboarding"
+          href="/api/auth/google"
           style={{
             display: "flex",
             alignItems: "center",
