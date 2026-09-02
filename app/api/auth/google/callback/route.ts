@@ -57,8 +57,9 @@ function getPublicOrigin(request: NextRequest): string {
   if (process.env.APP_URL) return process.env.APP_URL;
 
   // Derive from headers — take only the first value to prevent injection
-  const proto = (request.headers.get("x-forwarded-proto") || "https").split(",")[0].trim();
   const host = (request.headers.get("x-forwarded-host") || request.headers.get("host") || "localhost:3000").split(",")[0].trim();
+  // Default to http for localhost/127.0.0.1 (local dev), https otherwise (production behind CloudFront)
+  const proto = (request.headers.get("x-forwarded-proto") || (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https")).split(",")[0].trim();
   const origin = `${proto}://${host}`;
 
   // Defense-in-depth: reject localhost in production (indicates misconfiguration)
