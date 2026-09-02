@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import OppyOrb from "@/components/OppyOrb";
 import type { OrbMood } from "@/components/OppyOrb";
+import { normalizeInputList } from "@/lib/normalize-input";
 
 /* ── Constants ──────────────────────────────────────────────────────── */
 
@@ -362,11 +363,11 @@ export default function OnboardingPage() {
     try {
       const allInterests = [
         ...selectedInterests,
-        ...customInterests.split(",").map((s) => s.trim()).filter(Boolean),
+        ...normalizeInputList(customInterests),
       ];
       const allSkills = [
         ...selectedSkills,
-        ...customSkills.split(",").map((s) => s.trim()).filter(Boolean),
+        ...normalizeInputList(customSkills),
       ];
       const allLocations = locations.split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -506,7 +507,7 @@ export default function OnboardingPage() {
           <ChipGrid options={SUGGESTED_INTERESTS} selected={selectedInterests} onToggle={toggleInterest} />
           <input
             type="text"
-            placeholder="Other interests (comma-separated)"
+            placeholder="e.g. Data Engineering, NLP, DevOps — separate with commas"
             value={customInterests}
             onChange={(e) => setCustomInterests(e.target.value)}
             className="onb-input"
@@ -576,7 +577,7 @@ export default function OnboardingPage() {
           <ChipGrid options={SUGGESTED_SKILLS} selected={selectedSkills} onToggle={toggleSkill} />
           <input
             type="text"
-            placeholder="Other skills (comma-separated)"
+            placeholder="e.g. PyTorch, Terraform, Figma — separate with commas"
             value={customSkills}
             onChange={(e) => setCustomSkills(e.target.value)}
             className="onb-input"

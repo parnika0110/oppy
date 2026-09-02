@@ -58,6 +58,17 @@ export const INTEREST_TAXONOMY: Record<string, InterestDefinition> = {
     ],
     relatedInterests: ["Software Engineering"],
   },
+  "Data Engineering": {
+    label: "Data Engineering",
+    primary: "data engineering",
+    keywords: [
+      "data engineering", "etl", "data pipeline", "airflow", "spark",
+      "kafka", "data warehouse", "dbt", "snowflake", "bigquery",
+      "data lake", "databricks", "redshift", "data platform",
+      "streaming", "batch processing", "data infrastructure",
+    ],
+    relatedInterests: ["Data Science", "Cloud", "AI / ML"],
+  },
   "Data Science": {
     label: "Data Science",
     primary: "data science",
@@ -66,7 +77,7 @@ export const INTEREST_TAXONOMY: Record<string, InterestDefinition> = {
       "python", "statistics", "machine learning", "sql", "data",
       "visualization", "etl", "pipeline", "big data", "pandas",
     ],
-    relatedInterests: ["AI / ML", "Research"],
+    relatedInterests: ["AI / ML", "Research", "Data Engineering"],
   },
   "Design": {
     label: "Design",

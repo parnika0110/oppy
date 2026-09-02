@@ -126,12 +126,14 @@ function Section({
   title,
   emptyMessage,
   emptyMood,
+  emptyAction,
   items,
   explanations,
 }: {
   title: string;
   emptyMessage: string;
   emptyMood?: "curious" | "thinking" | "no-results" | "welcoming";
+  emptyAction?: { label: string; href: string };
   items: OpportunityDocument[];
   explanations?: Map<string, string[]>;
 }) {
@@ -141,11 +143,17 @@ function Section({
         {title}
       </h2>
       {items.length === 0 ? (
-        <OppyEmptyState
-          mood={emptyMood || "curious"}
-          title={emptyMessage}
-          size={40}
-        />
+        <div className="flex items-center justify-between py-4 px-5 rounded-xl" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <div className="flex items-center gap-3">
+            <ThemedOppyOrb mood={emptyMood || "curious"} size={28} />
+            <p className="text-sm" style={{ color: "var(--ink-soft)" }}>{emptyMessage}</p>
+          </div>
+          {emptyAction && (
+            <a href={emptyAction.href} className="text-xs font-medium whitespace-nowrap" style={{ color: "var(--accent-deep)", fontFamily: "'Space Grotesk', sans-serif" }}>
+              {emptyAction.label}
+            </a>
+          )}
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {items.map((opp) => (
@@ -272,21 +280,24 @@ export default async function DashboardPage() {
         title="Closing soon"
         items={closingSoon}
         emptyMood="welcoming"
-        emptyMessage="Nothing closing in the next two weeks right now."
+        emptyMessage="No matching deadlines in the next 2 weeks."
+        emptyAction={{ label: "Browse all opportunities →", href: "/?sort=deadline_asc" }}
       />
 
       <Section
         title="Upcoming events"
         items={upcomingEvents}
         emptyMood="curious"
-        emptyMessage="No upcoming events discovered yet."
+        emptyMessage="No upcoming events found."
+        emptyAction={{ label: "Explore events →", href: "/?category=Event" }}
       />
 
       <Section
         title="Saved opportunities"
         items={savedItems}
         emptyMood="no-results"
-        emptyMessage="You haven't saved anything yet. Browse opportunities and tap the bookmark icon."
+        emptyMessage="Nothing saved yet."
+        emptyAction={{ label: "Browse opportunities →", href: "/" }}
       />
 
       {recentlyViewedItems.length > 0 && (

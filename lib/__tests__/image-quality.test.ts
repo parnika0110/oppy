@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isImageUrl } from "../images";
+import { isImageUrl, isLowQualityImageUrl } from "../images";
 
 describe("image URL validation", () => {
   it("accepts valid image URLs", () => {
@@ -50,5 +50,29 @@ describe("image URL validation", () => {
     // Protocol-relative URLs are valid when used with a base
     // but new URL() requires a base, so these fail parsing
     expect(isImageUrl("//example.com/image.jpg")).toBe(false);
+  });
+});
+
+describe("isLowQualityImageUrl", () => {
+  it("rejects tiny logos and icons", () => {
+    expect(isLowQualityImageUrl("https://example.com/logo.png")).toBe(true);
+    expect(isLowQualityImageUrl("https://example.com/icon16.png")).toBe(true);
+    expect(isLowQualityImageUrl("https://cdn.co/logo32.jpg")).toBe(true);
+  });
+
+  it("rejects size-parameter URLs", () => {
+    expect(isLowQualityImageUrl("https://example.com/img.jpg?width=32")).toBe(true);
+    expect(isLowQualityImageUrl("https://example.com/img.jpg?w=64")).toBe(true);
+  });
+
+  it("does NOT reject high-quality images", () => {
+    expect(isLowQualityImageUrl("https://cdn.example.com/cover.jpg")).toBe(false);
+    expect(isLowQualityImageUrl("https://images.unsplash.com/photo-123")).toBe(false);
+    expect(isLowQualityImageUrl("https://example.com/event-banner.png")).toBe(false);
+  });
+
+  it("handles edge cases", () => {
+    expect(isLowQualityImageUrl("")).toBe(false);
+    expect(isLowQualityImageUrl(null as any)).toBe(false);
   });
 });

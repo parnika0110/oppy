@@ -141,6 +141,13 @@ export function scoreOpportunity(
           for (const kw of def.keywords) {
             if (textContainsKeyword(oppText, kw)) { thisInterest = 5; break; }
           }
+        } else if (interest.length >= 3) {
+          // Custom/Other interest: use the raw interest text as a direct match.
+          // This makes user-typed interests functional even when not in the taxonomy.
+          const lowerInterest = interest.toLowerCase();
+          if (oppText.includes(lowerInterest)) {
+            thisInterest = 12; // Stronger than taxonomy keyword match (5) since user declared it
+          }
         }
       }
 

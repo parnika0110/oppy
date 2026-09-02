@@ -437,6 +437,26 @@ async function runPipelineInner(sourceName: string | undefined, pipelineStart: n
     };
     await runsCollection.insertOne(runDoc);
 
+    // ── Stale source detection ──
+    // Check if the last N runs all returned 0 fetched items.
+    // This catches silent failures: expired API keys, changed URLs, broken scrapers.
+    const CONSECUTIVE_EMPTY_THRESHOLD = 3;
+    if (result.fetched === 0 && !hasErrors) {
+      const recentRuns = await runsCollection
+        .find({ source: source.name, status: { $ne: "skipped" } })
+        .sort({ completedAt: -1 })
+        .limit(CONSECUTIVE_EMPTY_THRESHOLD)
+        .toArray();
+
+      const consecutiveEmpty = recentRuns.every((r) => r.fetched === 0);
+      if (consecutiveEmpty && recentRuns.length >= CONSECUTIVE_EMPTY_THRESHOLD) {
+        console.warn(
+          `[Ingestion] ⚠️  ${source.name}: ${CONSECUTIVE_EMPTY_THRESHOLD}+ consecutive runs with 0 fetched items. ` +
+          `Source may be stale (API key expired, URL changed, or scraping broken).`
+        );
+      }
+    }
+
     sourceResults.push(result);
   }
 

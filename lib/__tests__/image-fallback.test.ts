@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { OpportunityDocument } from "@/types/opportunity";
+import { isLowQualityImageUrl, isImageUrl } from "../images";
 
 /**
  * Regression tests for the OpportunityCard image fallback chain.
@@ -154,6 +155,103 @@ describe("OpportunityCard image fallback logic", () => {
       expect(hasPrimary || hasOg).toBe(false);
       // This triggers the OrgAvatar fallback
     });
+  });
+});
+
+// ── Low-quality image URL detection ──────────────────────────────────────
+
+describe("isLowQualityImageUrl", () => {
+  it("rejects tiny logo URLs", () => {
+    expect(isLowQualityImageUrl("https://example.com/logo32.png")).toBe(true);
+    expect(isLowQualityImageUrl("https://example.com/logo.png")).toBe(true);
+    expect(isLowQualityImageUrl("https://cdn.example.com/company-logo.jpg")).toBe(true);
+  });
+
+  it("rejects icon URLs", () => {
+    expect(isLowQualityImageUrl("https://example.com/icon16.png")).toBe(true);
+    expect(isLowQualityImageUrl("https://example.com/icon.png")).toBe(true);
+  });
+
+  it("rejects thumbnail URLs", () => {
+    expect(isLowQualityImageUrl("https://example.com/thumb64.jpg")).toBe(true);
+    expect(isLowQualityImageUrl("https://example.com/thumbnail.png")).toBe(true);
+  });
+
+  it("rejects avatar URLs", () => {
+    expect(isLowQualityImageUrl("https://example.com/avatar32.png")).toBe(true);
+  });
+
+  it("rejects size-specific CDN variants", () => {
+    expect(isLowQualityImageUrl("https://example.com/img.jpg?width=32")).toBe(true);
+    expect(isLowQualityImageUrl("https://example.com/img.jpg?w=64")).toBe(true);
+    expect(isLowQualityImageUrl("https://example.com/img.jpg?size=48")).toBe(true);
+    expect(isLowQualityImageUrl("https://cdn.example.com/w/32/image.png")).toBe(true);
+  });
+
+  it("rejects fixed-size paths", () => {
+    expect(isLowQualityImageUrl("https://example.com/16x16/icon.png")).toBe(true);
+    expect(isLowQualityImageUrl("https://example.com/32x32/logo.png")).toBe(true);
+    expect(isLowQualityImageUrl("https://example.com/64x64/image.png")).toBe(true);
+  });
+
+  it("does NOT reject high-quality image URLs", () => {
+    expect(isLowQualityImageUrl("https://cdn.example.com/hero-banner.jpg")).toBe(false);
+    expect(isLowQualityImageUrl("https://images.unsplash.com/photo-1234567890")).toBe(false);
+    expect(isLowQualityImageUrl("https://example.com/cover-image-wide.png")).toBe(false);
+    expect(isLowQualityImageUrl("https://example.com/event-cover.webp")).toBe(false);
+  });
+
+  it("does NOT reject images with large size hints", () => {
+    expect(isLowQualityImageUrl("https://example.com/img.jpg?width=800")).toBe(false);
+    expect(isLowQualityImageUrl("https://example.com/img.jpg?w=1200")).toBe(false);
+  });
+
+  it("handles empty/null input", () => {
+    expect(isLowQualityImageUrl("")).toBe(false);
+    expect(isLowQualityImageUrl(null as any)).toBe(false);
+  });
+});
+
+// ── Combined quality guard ──────────────────────────────────────────────
+
+describe("Card image quality decision", () => {
+  it("rejects image when URL matches low-quality pattern", () => {
+    const imageUrl = "https://example.com/logo32.png";
+    const isLowQuality = isLowQualityImageUrl(imageUrl);
+    const hasPrimary = Boolean(imageUrl) && !isLowQuality;
+    expect(hasPrimary).toBe(false);
+  });
+
+  it("accepts image when URL is high-quality", () => {
+    const imageUrl = "https://cdn.example.com/hero-banner.jpg";
+    const isLowQuality = isLowQualityImageUrl(imageUrl);
+    const hasPrimary = Boolean(imageUrl) && !isLowQuality;
+    expect(hasPrimary).toBe(true);
+  });
+
+  it("falls back to OG when primary is low-quality", () => {
+    const imageUrl = "https://example.com/icon.png";
+    const isLowQuality = isLowQualityImageUrl(imageUrl);
+    const hasPrimary = Boolean(imageUrl) && !isLowQuality;
+    const hasOgImage = false; // OG not fetched yet
+    const showImage = hasPrimary || hasOgImage;
+    expect(showImage).toBe(false); // Will trigger OrgAvatar
+  });
+
+  it("falls back to OrgAvatar when both primary and OG are unavailable", () => {
+    const hasPrimary = false;
+    const hasOgImage = false;
+    const showImage = hasPrimary || hasOgImage;
+    expect(showImage).toBe(false);
+  });
+
+  it("shows OG image when primary is low-quality but OG is available", () => {
+    const imageUrl = "https://example.com/logo32.png";
+    const isLowQuality = isLowQualityImageUrl(imageUrl);
+    const hasPrimary = Boolean(imageUrl) && !isLowQuality;
+    const hasOgImage = true;
+    const showImage = hasPrimary || hasOgImage;
+    expect(showImage).toBe(true);
   });
 });
 

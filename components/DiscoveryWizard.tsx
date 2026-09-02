@@ -369,14 +369,15 @@ export default function DiscoveryWizard() {
           value={aiQuery}
           onChange={(e) => setAiQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAiSearch()}
-          placeholder='Try: "I want remote AI internships for students"'
+          placeholder='Type or speak naturally — e.g. "remote AI internships for students"'
           className="dw-ai-input"
           disabled={aiLoading}
         />
         <button
           onClick={handleVoiceInput}
           className="dw-voice-btn"
-          title="Voice input"
+          title="Search by voice"
+          aria-label="Search by voice — speak your query"
           disabled={aiLoading}
           type="button"
         >

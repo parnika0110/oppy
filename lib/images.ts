@@ -50,7 +50,41 @@ const FAVICON_PATTERNS = [
   "favicon",
 ];
 
+// Patterns indicating tiny/low-resolution images (logos, thumbnails, icons)
+// These are typically 16-64px and not suitable for card display.
+const LOW_QUALITY_PATTERNS = [
+  // Logo/thumbnail size hints in URL path
+  /[-\/]logo\d*\.(png|jpg|jpeg|svg|gif|webp)/i,
+  /[-\/]icon\d*\.(png|jpg|jpeg|svg|gif|webp)/i,
+  /[-\/]thumb\w*\.(png|jpg|jpeg|svg|gif|webp)/i,
+  /[-\/]avatar\d*\.(png|jpg|jpeg|svg|gif|webp)/i,
+  /[-\/]badge\d*\.(png|jpg|jpeg|svg|gif|webp)/i,
+  // Size-specific CDN variants
+  /\?.*(?:width|w|size|dim)=(?:\d{1,2}|[12]\d{2})\b/i, // width=16..199
+  /[\/](?:w|h|size|dim)[=\/](?:\d{1,2}|[12]\d{2})\b/i,  // /w/32, /h/64
+  // Common tiny image paths
+  /[\/]16x16[\/]/i,
+  /[\/]32x32[\/]/i,
+  /[\/]48x48[\/]/i,
+  /[\/]64x64[\/]/i,
+  /[\/]favicon[\/]/i,
+];
+
+// Minimum dimensions for a usable card image (in pixels).
+// Images smaller than this are rejected in favor of OG/avatar fallbacks.
+export const MIN_IMAGE_WIDTH = 200;
+export const MIN_IMAGE_HEIGHT = 100;
+
 // ── Validation Functions ──────────────────────────────────────────────────
+
+/**
+ * Check if a URL looks like a low-resolution/tiny image (logo, icon, thumbnail).
+ * Returns true if the URL pattern suggests the image is too small for card display.
+ */
+export function isLowQualityImageUrl(url: string): boolean {
+  if (!url || typeof url !== "string") return false;
+  return LOW_QUALITY_PATTERNS.some((pattern) => pattern.test(url));
+}
 
 /**
  * Check if a URL is plausibly an actual image (not HTML, favicon, etc.)
@@ -197,8 +231,8 @@ export async function resolveBestImage(
   sourceImageUrl: string | null | undefined,
   opportunityUrl: string | null | undefined
 ): Promise<string | null> {
-  // 1. Source-provided image
-  if (sourceImageUrl && isImageUrl(sourceImageUrl)) {
+  // 1. Source-provided image — validate AND check URL patterns
+  if (sourceImageUrl && isImageUrl(sourceImageUrl) && !isLowQualityImageUrl(sourceImageUrl)) {
     const validation = await validateImageUrl(sourceImageUrl);
     if (validation.valid) return sourceImageUrl;
   }

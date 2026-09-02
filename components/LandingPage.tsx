@@ -1,6 +1,6 @@
 import OpportunityCard from "@/components/OpportunityCard";
 import DiscoveryWizard from "@/components/DiscoveryWizard";
-import OppyLogoWrapper from "@/components/OppyLogoWrapper";
+
 import ThemedOppyOrb from "@/components/ThemedOppyOrb";
 import SearchBar from "@/components/SearchBar";
 import { OpportunityDocument } from "@/types/opportunity";
@@ -61,11 +61,40 @@ export default function LandingPage({ liveOpps, activeCount }: { liveOpps: Oppor
             )}
           </div>
 
-          {/* Right: 3D opportunity network logo */}
-          <div className="lp-hero-logo">
-            <OppyLogoWrapper
-              style={{ width: "100%", height: "100%" }}
-            />
+          {/* Right: floating opportunity cards */}
+          <div className="lp-hero-visual">
+            <div className="lp-hero-cards">
+              {/* Card 1 — Hackathon */}
+              <div className="lp-hero-card" style={{ transform: "rotate(-3deg) translateY(0)", zIndex: 3 }}>
+                <span className="lp-hero-card-cat" style={{ background: "var(--lavender)", color: "#4A3F8A" }}>Hackathon</span>
+                <p className="lp-hero-card-title">AI Builders Challenge</p>
+                <p className="lp-hero-card-meta">Bengaluru · Jan 2027</p>
+              </div>
+              {/* Card 2 — Fellowship */}
+              <div className="lp-hero-card" style={{ transform: "rotate(2deg) translate(20px, -12px)", zIndex: 2 }}>
+                <span className="lp-hero-card-cat" style={{ background: "var(--sage)", color: "#2E5A28" }}>Fellowship</span>
+                <p className="lp-hero-card-title">Open Source Mentorship</p>
+                <p className="lp-hero-card-meta">Remote · Global</p>
+              </div>
+              {/* Card 3 — Internship */}
+              <div className="lp-hero-card" style={{ transform: "rotate(-1deg) translate(8px, 16px)", zIndex: 4 }}>
+                <span className="lp-hero-card-cat" style={{ background: "var(--peach)", color: "#7A4A1A" }}>Internship</span>
+                <p className="lp-hero-card-title">Python Developer Intern</p>
+                <p className="lp-hero-card-meta">Remote · Beginner</p>
+              </div>
+              {/* Card 4 — Event */}
+              <div className="lp-hero-card" style={{ transform: "rotate(3deg) translate(-10px, 28px)", zIndex: 1 }}>
+                <span className="lp-hero-card-cat" style={{ background: "#F0E8FF", color: "#5B3D8A" }}>Event</span>
+                <p className="lp-hero-card-title">React Summit 2027</p>
+                <p className="lp-hero-card-meta">Amsterdam · Mar 2027</p>
+              </div>
+              {/* Card 5 — Scholarship */}
+              <div className="lp-hero-card" style={{ transform: "rotate(-2deg) translate(30px, 6px)", zIndex: 5 }}>
+                <span className="lp-hero-card-cat" style={{ background: "var(--blue)", color: "#1F4A62" }}>Scholarship</span>
+                <p className="lp-hero-card-title">Google Generation Scholarship</p>
+                <p className="lp-hero-card-meta">Global · Deadline Soon</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -75,7 +104,7 @@ export default function LandingPage({ liveOpps, activeCount }: { liveOpps: Oppor
           ════════════════════════════════════════════════════════════════ */}
       <section className="lp-section" style={{ paddingTop: 0 }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
-          <p className="eyebrow" style={{ textAlign: 'center', marginBottom: '0.75rem' }}>Quick search</p>
+          <p className="eyebrow" style={{ textAlign: 'center', marginBottom: '0.75rem' }}>Quick search — press Enter to find</p>
           <SearchBar />
         </div>
       </section>
@@ -107,11 +136,11 @@ export default function LandingPage({ liveOpps, activeCount }: { liveOpps: Oppor
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
             <ThemedOppyOrb mood="curious" size={40} />
           </div>
-          <p className="eyebrow" style={{ marginBottom: '0.75rem' }}>Tell OPPY what you want</p>
+          <p className="eyebrow" style={{ marginBottom: '0.75rem' }}>Discover</p>
           <h2 className="lp-section-headline" style={{ fontSize: 'clamp(1.2rem, 2.5vw, 1.6rem)' }}>
-            Let us find opportunities
+            Ask Oppy what you're looking for
             <br />
-            <span style={{ color: 'var(--accent-deep)' }}>that match you.</span>
+            <span style={{ color: 'var(--accent-deep)' }}>in your language.</span>
           </h2>
         </div>
         <DiscoveryWizard />
