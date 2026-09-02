@@ -156,7 +156,7 @@ async function getLandingOpps(): Promise<OpportunityDocument[]> {
     const items = await collection
       .find(activeFilter)
       .sort({ opportunityScore: -1, createdAt: -1 })
-      .limit(6)
+      .limit(20) // Wider pool for hero card category diversity
       .toArray();
     return items.map((item) => ({ ...item, _id: item._id.toString() })) as unknown as OpportunityDocument[];
   } catch {
