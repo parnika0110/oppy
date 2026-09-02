@@ -6,6 +6,9 @@ export default defineConfig({
     environment: "node",
     include: ["**/*.test.ts"],
     exclude: ["node_modules", ".next", "app", "components", "scripts"],
+    alias: {
+      "server-only": path.resolve(__dirname, "lib/__mocks__/server-only.ts"),
+    },
   },
   resolve: {
     alias: {

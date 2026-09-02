@@ -1,3 +1,4 @@
+import "server-only";
 import type { ResumeProfile } from "@/lib/userAuth";
 import { resolveSkill, resolveInterest } from "@/lib/taxonomies";
 
