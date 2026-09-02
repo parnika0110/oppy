@@ -31,6 +31,7 @@ import { refreshOpportunityLifecycle } from "@/lib/lifecycle";
 import { scoreOpportunity } from "@/lib/discovery/rank";
 import { fetchOpenGraphImage, resolveImageUrl } from "@/lib/images";
 import { cleanIngestedText } from "@/lib/html-entities";
+import { normalizeLocation } from "@/lib/location-normalize";
 
 // ── Source refresh intervals (in milliseconds) ──────────────────────────────
 // Used by admin dashboard to show freshness and by ingestion scheduling.
@@ -102,6 +103,25 @@ export interface PipelineResult {
   promoted?: number;
   lockAcquired?: boolean;
   sourcesSkipped?: string[];
+}
+
+// ── Normalize location at ingestion time ──────────────────────────────────
+// Cleans up raw location strings from sources: collapses whitespace,
+// normalizes city names (Bangalore→Bengaluru), handles "See posting" → unknown,
+// strips (Hybrid)/(Remote) suffixes, and applies canonical city mapping.
+function normalizeIngestedLocation(raw: string): string {
+  if (!raw) return "";
+  // Collapse multiple whitespace, trim
+  let cleaned = raw.replace(/\s+/g, " ").trim();
+  // "See posting" / "See job posting" → unknown (empty)
+  if (/^see\s+(the\s+)?(job\s+)?posting$/i.test(cleaned)) return "";
+  // Strip (Hybrid), (Remote), (On-site), (Remote/Hybrid) suffixes
+  cleaned = cleaned.replace(/\s*\((?:Hybrid|Remote|On[- ]site|Remote\/Hybrid)\)\s*$/i, "").trim();
+  // Apply canonical city normalization
+  const normalized = normalizeLocation(cleaned);
+  if (normalized.isRemote) return "Remote";
+  const parts = [normalized.city, normalized.state, normalized.country].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : cleaned;
 }
 
 // ── Escape regex special chars in titles ─────────────────────────────────────
@@ -352,7 +372,7 @@ async function runPipelineInner(sourceName: string | undefined, pipelineStart: n
             title: cleanIngestedText(raw.title),
             organization: cleanIngestedText(raw.organization),
             category: raw.category,
-            location: cleanIngestedText(raw.location),
+            location: normalizeIngestedLocation(cleanIngestedText(raw.location)),
             tags: (raw.tags || []).map(cleanIngestedText).filter(Boolean),
             description: cleanIngestedText(raw.description),
             applicationLink: raw.applicationLink,

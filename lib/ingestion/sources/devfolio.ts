@@ -44,7 +44,7 @@ export class DevfolioSource implements OpportunitySource {
 
     for (const season of [`${YEAR}`, `${YEAR + 1}`]) {
       try {
-        const response = await fetch(`https://mlh.io/seasons/${season}/events`, {
+        const response = await fetch(`https://www.mlh.com/seasons/${season}/events`, {
           headers: {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept": "text/html,application/xhtml+xml",

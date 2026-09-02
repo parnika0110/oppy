@@ -9,9 +9,15 @@ import { RawOpportunity, OpportunitySource } from "@/types/opportunity";
  */
 
 const SEARCH_PAGES = [
+  // Online events
   "https://www.eventbrite.com/d/online/tech-events/",
   "https://www.eventbrite.com/d/online/hackathon/",
   "https://www.eventbrite.com/d/online/career-development/",
+  // Physical / in-person events — major tech hubs
+  "https://www.eventbrite.com/d/india--bangalore/tech-events/",
+  "https://www.eventbrite.com/d/india--mumbai/tech-events/",
+  "https://www.eventbrite.com/d/united-states--san-francisco/tech-events/",
+  "https://www.eventbrite.com/d/united-states--new-york/tech-events/",
   // NOTE: /workshop/ and /startup/ are excluded because they return
   // non-tech events (mental health workshops, drawing classes, budget
   // workshops, business networking circles) that are not relevant
