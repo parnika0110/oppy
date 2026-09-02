@@ -5,22 +5,24 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import OppyOrb from "@/components/OppyOrb";
 import type { OrbMood } from "@/components/OppyOrb";
-import { normalizeInputList } from "@/lib/normalize-input";
+import SearchableMultiSelect from "@/components/SearchableMultiSelect";
+import ResumeUpload from "@/components/ResumeUpload";
+import {
+  SKILL_TAXONOMY,
+  INTEREST_TAXONOMY_ENTRIES,
+  LOCATION_TAXONOMY,
+  getPopularSkills,
+  getPopularInterests,
+  getPopularLocations,
+} from "@/lib/taxonomies";
 
 /* ── Constants ──────────────────────────────────────────────────────── */
 
 const EXPERIENCE_OPTIONS = ["Beginner", "Intermediate", "Advanced"];
 
-const SUGGESTED_SKILLS = [
-  "Python", "JavaScript", "TypeScript", "React", "Node.js", "Java", "C++",
-  "Machine Learning", "Data Science", "Web Development", "Mobile Development",
-  "DevOps", "UI/UX Design", "SQL", "Go", "Rust", "Swift", "Kotlin",
-];
+const SUGGESTED_SKILLS = getPopularSkills().map((e) => e.label);
 
-const SUGGESTED_INTERESTS = [
-  "AI", "Startups", "Open Source", "Research", "Fintech", "Healthcare",
-  "Climate", "Web3", "Robotics", "Game Dev", "Cybersecurity", "Data Engineering",
-];
+const SUGGESTED_INTERESTS = getPopularInterests().map((e) => e.label);
 
 /**
  * User avatar color options — stored in user.avatar.
@@ -52,6 +54,7 @@ type Step =
   | "intro"
   | "name"
   | "identity"
+  | "method"
   | "interests"
   | "categories"
   | "skills"
@@ -61,7 +64,7 @@ type Step =
   | "done";
 
 const JOURNEY_STEPS: Step[] = [
-  "intro", "name", "identity", "interests", "categories",
+  "intro", "name", "identity", "method", "interests", "categories",
   "skills", "experience", "location",
 ];
 
@@ -251,13 +254,12 @@ export default function OnboardingPage() {
   const [userName, setUserName] = useState("");
   const [selectedAvatarColor, setSelectedAvatarColor] = useState<UserAvatarColorId | "">("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  const [customInterests, setCustomInterests] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [customSkills, setCustomSkills] = useState("");
   const [experience, setExperience] = useState("");
-  const [locations, setLocations] = useState("");
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [remote, setRemote] = useState<boolean | null>(null);
+  const [profileMethod, setProfileMethod] = useState<"resume" | "manual" | null>(null);
   const [saving, setSaving] = useState(false);
   const [processingPhase, setProcessingPhase] = useState(0);
 
@@ -276,7 +278,7 @@ export default function OnboardingPage() {
       if (user.preferences?.interests?.length) setSelectedInterests(user.preferences.interests);
       if (user.preferences?.skills?.length) setSelectedSkills(user.preferences.skills);
       if (user.preferences?.experience) setExperience(user.preferences.experience);
-      if (user.preferences?.locations?.length) setLocations(user.preferences.locations.join(", "));
+      if (user.preferences?.locations?.length) setSelectedLocations(user.preferences.locations);
       if (user.preferences?.remote !== undefined) setRemote(user.preferences.remote);
     }
   }, [user]);
@@ -308,9 +310,10 @@ export default function OnboardingPage() {
       case "intro": return true;
       case "name": return userName.trim().length > 0;
       case "identity": return selectedAvatarColor.length > 0;
-      case "interests": return selectedInterests.length > 0 || customInterests.trim().length > 0;
+      case "method": return profileMethod !== null;
+      case "interests": return selectedInterests.length > 0;
       case "categories": return selectedCategories.length > 0;
-      case "skills": return selectedSkills.length > 0 || customSkills.trim().length > 0;
+      case "skills": return selectedSkills.length > 0;
       case "experience": return true;
       case "location": return true;
       default: return true;
@@ -320,8 +323,14 @@ export default function OnboardingPage() {
   function toggleInterest(v: string) {
     setSelectedInterests((p) => p.includes(v) ? p.filter((i) => i !== v) : [...p, v]);
   }
+  function addInterest(v: string) {
+    if (!selectedInterests.includes(v)) setSelectedInterests((p) => [...p, v]);
+  }
   function toggleSkill(v: string) {
     setSelectedSkills((p) => p.includes(v) ? p.filter((s) => s !== v) : [...p, v]);
+  }
+  function addSkill(v: string) {
+    if (!selectedSkills.includes(v)) setSelectedSkills((p) => [...p, v]);
   }
   function toggleCategory(v: string) {
     setSelectedCategories((p) => p.includes(v) ? p.filter((c) => c !== v) : [...p, v]);
@@ -330,14 +339,36 @@ export default function OnboardingPage() {
   function goNext() {
     const idx = JOURNEY_STEPS.indexOf(step);
     if (idx < JOURNEY_STEPS.length - 1) {
-      setStep(JOURNEY_STEPS[idx + 1]);
+      let nextIdx = idx + 1;
+      // When coming from resume path, skip interests and skills steps
+      // since the user already chose those in the ResumeUpload confirmation.
+      // Do NOT skip categories — a resume cannot determine what types of
+      // opportunities the user is looking for.
+      if (profileMethod === "resume" && step === "method") {
+        // Skip interests and skills → go to categories
+        while (
+          nextIdx < JOURNEY_STEPS.length &&
+          ["interests", "skills"].includes(JOURNEY_STEPS[nextIdx])
+        ) {
+          nextIdx++;
+        }
+      }
+      setStep(JOURNEY_STEPS[nextIdx]);
     }
   }
 
   function goBack() {
     const idx = JOURNEY_STEPS.indexOf(step);
     if (idx > 0) {
-      setStep(JOURNEY_STEPS[idx - 1]);
+      let prevIdx = idx - 1;
+      // When on resume path, skip back over interests/skills
+      // since those were handled by the ResumeUpload confirmation.
+      if (profileMethod === "resume") {
+        while (prevIdx > 0 && ["interests", "skills"].includes(JOURNEY_STEPS[prevIdx])) {
+          prevIdx--;
+        }
+      }
+      setStep(JOURNEY_STEPS[prevIdx]);
     }
   }
 
@@ -361,27 +392,17 @@ export default function OnboardingPage() {
   async function saveAndRedirect(complete: boolean) {
     setSaving(true);
     try {
-      const allInterests = [
-        ...selectedInterests,
-        ...normalizeInputList(customInterests),
-      ];
-      const allSkills = [
-        ...selectedSkills,
-        ...normalizeInputList(customSkills),
-      ];
-      const allLocations = locations.split(",").map((s) => s.trim()).filter(Boolean);
-
       await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: userName.trim() || user?.name || "",
           avatar: selectedAvatarColor || undefined,
-          interests: allInterests,
-          skills: allSkills,
+          interests: selectedInterests,
+          skills: selectedSkills,
           experience: experience || undefined,
           categories: selectedCategories,
-          locations: allLocations,
+          locations: selectedLocations,
           remote,
           onboardingComplete: complete,
         }),
@@ -496,6 +517,77 @@ export default function OnboardingPage() {
     );
   }
 
+  function renderMethod() {
+    if (profileMethod === "resume") {
+      return (
+        <StepCard stepKey="method">
+          <OppyCompanion
+            message="Upload your resume and OPPY will extract your skills, projects, and experience."
+            mood="excited"
+          />
+          <ResumeUpload
+            onConfirm={(skills, interests) => {
+              setSelectedSkills(skills);
+              setSelectedInterests(interests);
+              goNext();
+            }}
+            onSkip={() => {
+              setProfileMethod(null);
+            }}
+          />
+          <div className="onb-nav">
+            <button onClick={goBack} className="onb-btn-back">← Back</button>
+          </div>
+        </StepCard>
+      );
+    }
+
+    return (
+      <StepCard stepKey="method">
+        <OppyCompanion
+          message="How would you like to build your profile?"
+          mood="welcoming"
+        />
+        <div className="flex flex-col gap-4 mt-4">
+          <button
+            onClick={() => setProfileMethod("resume")}
+            className="w-full text-left p-5 rounded-2xl border-2 border-stone-200 hover:border-oppy-purple/50 hover:bg-oppy-purple/5 transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📄</span>
+              <div>
+                <p className="font-semibold text-stone-900">Upload my resume</p>
+                <p className="text-sm text-stone-500">OPPY will extract your skills, projects & experience</p>
+              </div>
+            </div>
+          </button>
+          <button
+            onClick={() => setProfileMethod("manual")}
+            className={`w-full text-left p-5 rounded-2xl border-2 transition-all ${
+              profileMethod === "manual"
+                ? "border-oppy-purple bg-oppy-purple/5 ring-2 ring-oppy-purple/20"
+                : "border-stone-200 hover:border-oppy-purple/50 hover:bg-oppy-purple/5"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">✍️</span>
+              <div>
+                <p className="font-semibold text-stone-900">Build it myself</p>
+                <p className="text-sm text-stone-500">Choose your skills and interests manually</p>
+              </div>
+            </div>
+          </button>
+        </div>
+        <div className="onb-nav">
+          <button onClick={goBack} className="onb-btn-back">← Back</button>
+          <button onClick={handleContinue} className="onb-btn-primary" disabled={!canContinue()}>
+            Continue →
+          </button>
+        </div>
+      </StepCard>
+    );
+  }
+
   function renderInterests() {
     return (
       <StepCard stepKey="interests">
@@ -505,14 +597,15 @@ export default function OnboardingPage() {
         />
         <div className="onb-body">
           <ChipGrid options={SUGGESTED_INTERESTS} selected={selectedInterests} onToggle={toggleInterest} />
-          <input
-            type="text"
-            placeholder="e.g. Data Engineering, NLP, DevOps — separate with commas"
-            value={customInterests}
-            onChange={(e) => setCustomInterests(e.target.value)}
-            className="onb-input"
-            style={{ marginTop: 12 }}
-          />
+          <div style={{ marginTop: 12 }}>
+            <SearchableMultiSelect
+              entries={INTEREST_TAXONOMY_ENTRIES}
+              selected={selectedInterests}
+              onChange={setSelectedInterests}
+              placeholder="Search interests… e.g. Data Engineering, NLP"
+              popularLabel="More interests"
+            />
+          </div>
         </div>
         <div className="onb-nav">
           <button onClick={goBack} className="onb-btn-back">← Back</button>
@@ -575,14 +668,15 @@ export default function OnboardingPage() {
         />
         <div className="onb-body">
           <ChipGrid options={SUGGESTED_SKILLS} selected={selectedSkills} onToggle={toggleSkill} />
-          <input
-            type="text"
-            placeholder="e.g. PyTorch, Terraform, Figma — separate with commas"
-            value={customSkills}
-            onChange={(e) => setCustomSkills(e.target.value)}
-            className="onb-input"
-            style={{ marginTop: 12 }}
-          />
+          <div style={{ marginTop: 12 }}>
+            <SearchableMultiSelect
+              entries={SKILL_TAXONOMY}
+              selected={selectedSkills}
+              onChange={setSelectedSkills}
+              placeholder="Search skills… e.g. PyTorch, Terraform, Figma"
+              popularLabel="More skills"
+            />
+          </div>
         </div>
         <div className="onb-nav">
           <button onClick={goBack} className="onb-btn-back">← Back</button>
@@ -643,12 +737,12 @@ export default function OnboardingPage() {
           mood="excited"
         />
         <div className="onb-body">
-          <input
-            type="text"
-            placeholder="India, Bengaluru, Remote… (comma-separated)"
-            value={locations}
-            onChange={(e) => setLocations(e.target.value)}
-            className="onb-input"
+          <SearchableMultiSelect
+            entries={LOCATION_TAXONOMY}
+            selected={selectedLocations}
+            onChange={setSelectedLocations}
+            placeholder="Search locations… e.g. Bengaluru, Remote, Singapore"
+            popularLabel="Popular locations"
           />
           <div className="onb-remote-section">
             <p className="onb-remote-label">Remote preference</p>
@@ -738,6 +832,7 @@ export default function OnboardingPage() {
         {step === "intro" && renderIntro()}
         {step === "name" && renderName()}
         {step === "identity" && renderIdentity()}
+        {step === "method" && renderMethod()}
         {step === "interests" && renderInterests()}
         {step === "categories" && renderCategories()}
         {step === "skills" && renderSkills()}

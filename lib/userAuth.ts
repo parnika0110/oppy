@@ -9,6 +9,32 @@ export const SESSION_COOKIE = "oppy_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const BCRYPT_ROUNDS = 12;
 
+export interface ResumeProfile {
+  uploaded: boolean;
+  extractedSkills: string[];
+  extractedInterests: string[];
+  projects: Array<{
+    title: string;
+    technologies: string[];
+    description?: string;
+  }>;
+  experience: Array<{
+    role: string;
+    organization: string;
+    duration?: string;
+    description?: string;
+  }>;
+  education: Array<{
+    institution: string;
+    degree?: string;
+    field?: string;
+    year?: string;
+  }>;
+  achievements: string[];
+  domains: string[];
+  parsedAt: Date;
+}
+
 export interface UserDocument {
   _id: ObjectId;
   email: string;
@@ -24,6 +50,7 @@ export interface UserDocument {
     locations?: string[];
     remote?: boolean | null;
   };
+  resumeProfile?: ResumeProfile;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +62,7 @@ export interface SafeUser {
   avatar?: string;
   onboardingComplete: boolean;
   preferences: NonNullable<UserDocument["preferences"]>;
+  resumeProfile?: ResumeProfile;
   createdAt: string;
 }
 
@@ -46,6 +74,7 @@ function toSafeUser(doc: UserDocument): SafeUser {
     avatar: doc.avatar,
     onboardingComplete: Boolean(doc.onboardingComplete),
     preferences: doc.preferences || {},
+    resumeProfile: doc.resumeProfile,
     createdAt: doc.createdAt.toISOString(),
   };
 }

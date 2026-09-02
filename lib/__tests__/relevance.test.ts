@@ -521,4 +521,223 @@ describe("critical user scenarios", () => {
     expect(score.experience).toBeGreaterThanOrEqual(8);
     expect(score.total).toBeGreaterThanOrEqual(80);
   });
+
+  // ── Skills scoring tests ─────────────────────────────────────────────
+  it("skills boost matching opportunities when interests are weak", () => {
+    const opp = makeOpp({
+      title: "Python Backend Developer",
+      tags: ["python", "django", "backend"],
+      description: "Build backend services with Python",
+      location: "Remote",
+      category: "Job",
+    });
+    const prefs: DiscoveryPreferences = {
+      skills: ["Python"],
+      location: "Paris",
+    };
+    const score = scoreOpportunity(opp, prefs);
+    // Skills should boost the interest score above baseline
+    expect(score.interests).toBeGreaterThan(3);
+  });
+
+  it("skills in title get highest boost", () => {
+    const opp = makeOpp({
+      title: "Mobile Development Engineer",
+      tags: ["android", "kotlin"],
+      description: "Build mobile apps",
+      location: "Remote",
+      category: "Job",
+    });
+    const prefs: DiscoveryPreferences = {
+      skills: ["Mobile Development"],
+      location: "Paris",
+    };
+    const score = scoreOpportunity(opp, prefs);
+    expect(score.interests).toBeGreaterThanOrEqual(20);
+  });
+
+  it("skills do not override strong interest signals", () => {
+    const opp = makeOpp({
+      title: "AI Research Intern",
+      tags: ["ai", "machine learning"],
+      description: "Deep learning research",
+      location: "Remote",
+      category: "Internship",
+    });
+    const prefs: DiscoveryPreferences = {
+      interests: ["AI / ML"],
+      skills: ["Python"],
+      location: "Paris",
+    };
+    const score = scoreOpportunity(opp, prefs);
+    // Interest match should dominate, not be replaced by skills
+    expect(score.interests).toBeGreaterThanOrEqual(25);
+  });
+
+  it("Game Dev interest matches game-related opportunities", () => {
+    const gameOpp = makeOpp({
+      title: "Game Developer Intern",
+      tags: ["unity", "game dev", "c#"],
+      description: "Build games with Unity",
+      location: "Remote",
+      category: "Internship",
+    });
+    const genericOpp = makeOpp({
+      _id: "test-2",
+      title: "Sales Representative",
+      tags: ["sales", "marketing"],
+      description: "Sell enterprise software",
+      location: "Remote",
+      category: "Job",
+    });
+    const prefs: DiscoveryPreferences = {
+      interests: ["Game Dev"],
+      location: "Paris",
+    };
+    const gameScore = scoreOpportunity(gameOpp, prefs);
+    const genericScore = scoreOpportunity(genericOpp, prefs);
+    expect(gameScore.total).toBeGreaterThan(genericScore.total);
+  });
+
+  // ── Multi-location ranking test ──────────────────────────────────────
+  it("ranks Paris/Singapore remote opportunities above US-only hackathons", () => {
+    const parisOpp = makeOpp({
+      _id: "paris-1",
+      title: "Python DevOps Engineer",
+      tags: ["python", "devops", "kubernetes"],
+      description: "Remote DevOps role based in Paris",
+      location: "Paris",
+      isRemote: true,
+      category: "Job",
+    });
+    const singaporeOpp = makeOpp({
+      _id: "sg-1",
+      title: "Mobile Developer",
+      tags: ["flutter", "mobile", "android"],
+      description: "Mobile app development in Singapore",
+      location: "Singapore",
+      isRemote: true,
+      category: "Job",
+    });
+    const usHackathon = makeOpp({
+      _id: "us-1",
+      title: "HackMIT 2025",
+      tags: ["hackathon", "mit"],
+      description: "Annual hackathon at MIT in Cambridge, MA",
+      location: "Cambridge, MA",
+      category: "Hackathon",
+    });
+    const prefs: DiscoveryPreferences = {
+      interests: ["Game Dev", "DevOps"],
+      skills: ["Python", "Mobile Development"],
+      location: "Paris",
+      remote: true,
+      experience: "Intermediate",
+    };
+    const candidates = [parisOpp, singaporeOpp, usHackathon];
+    const ranked = rankOpportunities(candidates, prefs);
+    // Paris/Singapore opportunities should rank above US hackathon
+    const rankedIds = ranked.map((r) => r.opportunity._id);
+    expect(rankedIds.indexOf("paris-1")).toBeLessThan(rankedIds.indexOf("us-1"));
+    expect(rankedIds.indexOf("sg-1")).toBeLessThan(rankedIds.indexOf("us-1"));
+  });
+
+  it("multi-location scoring: best location wins per opportunity", () => {
+    const opp = makeOpp({
+      title: "Remote Python Developer",
+      tags: ["python"],
+      description: "Remote position",
+      location: "Remote",
+      category: "Job",
+    });
+    // Score with Paris
+    const parisPrefs: DiscoveryPreferences = {
+      skills: ["Python"],
+      location: "Paris",
+      remote: true,
+    };
+    const parisScore = scoreOpportunity(opp, parisPrefs);
+    // Score with Singapore
+    const sgPrefs: DiscoveryPreferences = {
+      skills: ["Python"],
+      location: "Singapore",
+      remote: true,
+    };
+    const sgScore = scoreOpportunity(opp, sgPrefs);
+    // Both should give positive location scores for remote opportunities
+    expect(parisScore.location).toBeGreaterThan(0);
+    expect(sgScore.location).toBeGreaterThan(0);
+    // Total scores should be positive (skills + location + baseline)
+    expect(parisScore.total).toBeGreaterThan(0);
+    expect(sgScore.total).toBeGreaterThan(0);
+  });
+
+  // ── Profile: Python + Mobile Dev + Game Dev + DevOps + Paris/Singapore + Intermediate + Remote
+  it("full profile: ranks relevant Python/Mobile/DevOps/Paris/Singapore above generic hackathons", () => {
+    const pythonJob = makeOpp({
+      _id: "python-job",
+      title: "Python Backend Engineer",
+      tags: ["python", "django", "backend"],
+      description: "Remote Python backend role",
+      location: "Remote",
+      category: "Job",
+    });
+    const mobileJob = makeOpp({
+      _id: "mobile-job",
+      title: "Flutter Mobile Developer",
+      tags: ["flutter", "mobile", "android"],
+      description: "Build cross-platform mobile apps",
+      location: "Singapore",
+      category: "Job",
+    });
+    const devopsJob = makeOpp({
+      _id: "devops-job",
+      title: "DevOps Engineer",
+      tags: ["devops", "kubernetes", "docker"],
+      description: "Infrastructure automation in Paris",
+      location: "Paris",
+      category: "Job",
+    });
+    const genericHackathon = makeOpp({
+      _id: "generic-hack",
+      title: "HackHarvard 2025",
+      tags: ["hackathon"],
+      description: "Annual hackathon at Harvard",
+      location: "Cambridge, MA",
+      category: "Hackathon",
+    });
+    const pennApps = makeOpp({
+      _id: "pennapps",
+      title: "PennApps Fall 2025",
+      tags: ["hackathon", "penn"],
+      description: "University of Pennsylvania hackathon",
+      location: "Philadelphia, PA",
+      category: "Hackathon",
+    });
+    const treehacks = makeOpp({
+      _id: "treehacks",
+      title: "TreeHacks 2025",
+      tags: ["hackathon", "stanford"],
+      description: "Stanford hackathon",
+      location: "Stanford, CA",
+      category: "Hackathon",
+    });
+    const prefs: DiscoveryPreferences = {
+      interests: ["Game Dev", "DevOps"],
+      skills: ["Python", "Mobile Development"],
+      location: "Paris",
+      remote: true,
+      experience: "Intermediate",
+    };
+    const candidates = [pythonJob, mobileJob, devopsJob, genericHackathon, pennApps, treehacks];
+    const ranked = rankOpportunities(candidates, prefs);
+    const rankedIds = ranked.map((r) => r.opportunity._id);
+    // Relevant jobs should rank above generic hackathons
+    expect(rankedIds.indexOf("python-job")).toBeLessThan(rankedIds.indexOf("generic-hack"));
+    expect(rankedIds.indexOf("devops-job")).toBeLessThan(rankedIds.indexOf("generic-hack"));
+    expect(rankedIds.indexOf("mobile-job")).toBeLessThan(rankedIds.indexOf("pennapps"));
+    // All 3 relevant jobs should be in top 4
+    expect(rankedIds.slice(0, 4)).toContain("python-job");
+    expect(rankedIds.slice(0, 4)).toContain("devops-job");
+  });
 });

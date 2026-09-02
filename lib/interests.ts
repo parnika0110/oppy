@@ -156,6 +156,105 @@ export const INTEREST_TAXONOMY: Record<string, InterestDefinition> = {
     ],
     relatedInterests: ["Cloud", "Software Engineering"],
   },
+  "Game Dev": {
+    label: "Game Dev",
+    primary: "game",
+    keywords: [
+      "game", "game dev", "gamedev", "game development", "game design",
+      "unity", "unreal", "unreal engine", "godot",
+      "3d modeling", "animation", "interactive media",
+    ],
+    relatedInterests: ["Software Engineering", "Design"],
+  },
+  "Data Analytics": {
+    label: "Data Analytics",
+    primary: "analytics",
+    keywords: [
+      "analytics", "data analytics", "business analytics",
+      "business intelligence", "bi", "dashboard", "reporting",
+      "data visualization", "tableau", "power bi", "looker",
+    ],
+    relatedInterests: ["Data Science", "Data Engineering"],
+  },
+  "Backend Development": {
+    label: "Backend Development",
+    primary: "backend",
+    keywords: [
+      "backend", "back-end", "server-side", "api", "api development",
+      "rest api", "graphql", "microservices", "database",
+      "server", "node.js", "django", "flask", "spring",
+    ],
+    relatedInterests: ["Software Engineering", "Web Development"],
+  },
+  "Frontend Development": {
+    label: "Frontend Development",
+    primary: "frontend",
+    keywords: [
+      "frontend", "front-end", "client-side", "ui development",
+      "react", "vue", "angular", "svelte", "next.js",
+      "css", "html", "responsive design", "web components",
+    ],
+    relatedInterests: ["Web Development", "Design"],
+  },
+  "Full Stack Development": {
+    label: "Full Stack Development",
+    primary: "full stack",
+    keywords: [
+      "full stack", "full-stack", "fullstack",
+      "full stack development", "full-stack development",
+      "end-to-end", "full stack engineer",
+    ],
+    relatedInterests: ["Backend Development", "Frontend Development"],
+  },
+  "Quality Assurance": {
+    label: "Quality Assurance",
+    primary: "qa",
+    keywords: [
+      "qa", "quality assurance", "testing", "software testing",
+      "test automation", "sdet", "quality engineering",
+      "manual testing", "automated testing", "regression testing",
+      "unit testing", "integration testing",
+    ],
+    relatedInterests: ["Software Engineering"],
+  },
+  "Data Annotation": {
+    label: "Data Annotation",
+    primary: "data annotation",
+    keywords: [
+      "data annotation", "data labeling", "annotation", "labeling",
+      "data tagging", "data curation", "training data",
+    ],
+    relatedInterests: ["AI / ML", "Data Science"],
+  },
+  "Embedded Systems": {
+    label: "Embedded Systems",
+    primary: "embedded",
+    keywords: [
+      "embedded", "embedded systems", "firmware", "iot",
+      "internet of things", "embedded software", "embedded engineering",
+      "microcontroller", "rtos", "bare metal",
+    ],
+    relatedInterests: ["Software Engineering"],
+  },
+  "Technical Writing": {
+    label: "Technical Writing",
+    primary: "technical writing",
+    keywords: [
+      "technical writing", "tech writing", "documentation",
+      "technical documentation", "developer docs", "api docs",
+      "knowledge base", "content strategy",
+    ],
+    relatedInterests: ["Developer Relations"],
+  },
+  "Consulting": {
+    label: "Consulting",
+    primary: "consulting",
+    keywords: [
+      "consulting", "consultant", "management consulting",
+      "tech consulting", "advisory", "strategy consulting",
+    ],
+    relatedInterests: ["Product Management"],
+  },
 };
 
 /** Get all keywords for a given interest label. */

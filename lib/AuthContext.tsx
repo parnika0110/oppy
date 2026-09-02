@@ -10,6 +10,17 @@ interface User {
   avatar?: string;
   onboardingComplete: boolean;
   preferences: Record<string, any>;
+  resumeProfile?: {
+    uploaded: boolean;
+    extractedSkills: string[];
+    extractedInterests: string[];
+    projects: Array<{ title: string; technologies: string[]; description?: string }>;
+    experience: Array<{ role: string; organization: string; duration?: string; description?: string }>;
+    education: Array<{ institution: string; degree?: string; field?: string; year?: string }>;
+    achievements: string[];
+    domains: string[];
+    parsedAt: string;
+  };
   createdAt: string;
 }
 
