@@ -308,32 +308,31 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
 
 /* ── Hero Visual — floating opportunity cards ────────────────────────── */
 .lp-hero-visual {
-  position: relative;
-  height: 380px;
-  width: 100%;
-  min-height: 280px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 1rem;
+  align-content: center;
+  justify-items: center;
+  min-height: 380px;
+  padding: 1rem 0;
 }
 
-.lp-hero-cards {
-  position: relative;
-  width: 280px;
-  height: 320px;
-}
+/* Grid placement for each card */
+.lp-hero-card:nth-child(1) { grid-column: 1; grid-row: 1; justify-self: start; }
+.lp-hero-card:nth-child(2) { grid-column: 2; grid-row: 1; justify-self: end; }
+.lp-hero-card:nth-child(3) { grid-column: 2; grid-row: 2; justify-self: end; }
+.lp-hero-card:nth-child(4) { grid-column: 1; grid-row: 3; justify-self: start; }
+.lp-hero-card:nth-child(5) { grid-column: 2; grid-row: 3; justify-self: end; }
 
 .lp-hero-card {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 240px;
+  width: 210px;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 1rem 1.1rem;
   box-shadow: 0 2px 12px rgba(33,29,46,0.06), 0 1px 3px rgba(33,29,46,0.04);
-  transition: transform 0.3s ease;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .lp-hero-card:hover {
@@ -369,30 +368,26 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
 
 @media (max-width: 900px) {
   .lp-hero-visual {
-    height: 280px;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    min-height: 320px;
   }
-  .lp-hero-cards {
-    width: 240px;
-    height: 280px;
-  }
-  .lp-hero-card {
-    width: 210px;
-  }
+  .lp-hero-card { width: 180px; padding: 0.85rem 0.95rem; }
+  .lp-hero-card-title { font-size: 0.8rem; }
 }
 
 @media (max-width: 640px) {
+  .lp-hero-grid { grid-template-columns: 1fr !important; }
   .lp-hero-visual {
-    height: 240px;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+    min-height: 260px;
+    margin-top: 1rem;
   }
-  .lp-hero-cards {
-    width: 220px;
-    height: 250px;
-  }
-  .lp-hero-card {
-    width: 190px;
-    padding: 0.8rem 0.9rem;
-  }
-  .lp-hero-card-title { font-size: 0.78rem; }
+  .lp-hero-card { width: 155px; padding: 0.7rem 0.8rem; }
+  .lp-hero-card-cat { font-size: 0.5rem; }
+  .lp-hero-card-title { font-size: 0.72rem; }
+  .lp-hero-card-meta { font-size: 0.6rem; }
 }
 
 /* ── Discovery Strip ───────────────────────────────────────────────────── */
