@@ -114,14 +114,10 @@ const FEEDS: FeedConfig[] = [
     platform: "YCombinator",
     keywords: ["hiring", "job", "intern", "program", "fellow", "founder"],
   },
-  {
-    name: "TechCrunch Startups",
-    url: "https://techcrunch.com/category/startups/feed/",
-    category: "Grant",
-    tags: ["startup", "funding"],
-    platform: "Other",
-    keywords: ["funding", "grant", "accelerator", "program", "fellowship"],
-  },
+  // NOTE: TechCrunch Startups is intentionally excluded.
+  // It is a NEWS feed — articles about funding rounds, acquisitions,
+  // and company announcements are NOT actionable opportunities.
+  // Keeping it would pollute the opportunity database with editorial content.
 
   // ── Google & Microsoft Programs ─────────────────────────────────────────
   {
@@ -261,10 +257,14 @@ export class RssFeedSource implements OpportunitySource {
             continue;
           }
 
-          // Determine category from strong signals
+          // Determine category from strong signals.
+          // IMPORTANT: Each category has its own exclusive regex.
+          // Words like "fellowship" and "scholarship" must NOT appear
+          // in the Grant regex — they are separate categories.
           const isInternship = /\b(intern|internship|co-?op)\b/.test(combined) && hasApplicationAction;
-          const isFellowship = /\b(fellow|fellowship|scholarship)\b/.test(combined) && (hasApplicationAction || hasDeadline);
-          const isGrant = /\b(grant|grants|scholarship|funding opportunity|financial support|stipend|fellowship)\b/.test(combined) && (hasApplicationAction || hasDeadline);
+          const isFellowship = /\b(fellow|fellowship)\b/.test(combined) && (hasApplicationAction || hasDeadline);
+          const isScholarship = /\b(scholarship)\b/.test(combined) && (hasApplicationAction || hasDeadline);
+          const isGrant = /\b(grant|grants|funding opportunity|financial support|stipend)\b/.test(combined) && (hasApplicationAction || hasDeadline);
           const isHackathon = /\b(hackathon|hack|competition|contest)\b/.test(combined) && hasInvitation;
           const isEvent = /\b(conference|meetup|workshop|webinar|summit)\b/.test(combined) && (hasApplicationAction || hasInvitation);
           const isHiring = hasHiringAction && !isInternship;
@@ -272,8 +272,10 @@ export class RssFeedSource implements OpportunitySource {
           // Only assign opportunity categories when strong signals support it;
           // otherwise fall back to the feed's declared category (which for
           // editorial feeds is now gated by the score check above).
+          // Precedence: Internship > Fellowship > Scholarship > Grant > Hackathon > Event > Job > feed default
           const category: Category = isInternship ? "Internship" :
             isFellowship ? "Fellowship" :
+            isScholarship ? "Scholarship" :
             isGrant ? "Grant" :
             isHackathon ? "Hackathon" :
             isEvent ? "Event" :

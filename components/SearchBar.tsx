@@ -14,8 +14,6 @@ export default function SearchBar({ className }: { className?: string }) {
   const [query, setQuery] = useState(initialQ);
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
-
   const updateSearch = useCallback(
     (value: string) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -31,15 +29,11 @@ export default function SearchBar({ className }: { className?: string }) {
   );
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const value = e.target.value;
-    setQuery(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => updateSearch(value), 350);
+    setQuery(e.target.value);
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (debounceRef.current) clearTimeout(debounceRef.current);
     updateSearch(query);
   }
 
@@ -49,11 +43,7 @@ export default function SearchBar({ className }: { className?: string }) {
     inputRef.current?.focus();
   }
 
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
+
 
   return (
     <form onSubmit={handleSubmit} className={className}>
@@ -88,7 +78,8 @@ export default function SearchBar({ className }: { className?: string }) {
           onChange={handleChange}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder="Search opportunities… (e.g. Python, remote, AI)"
+          placeholder='Type naturally — e.g. "remote AI internships for students"'
+          aria-label="Search opportunities"
           className="w-full py-2.5 pl-10 pr-9 text-sm bg-transparent outline-none"
           style={{
             color: "var(--ink)",

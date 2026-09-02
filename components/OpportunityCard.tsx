@@ -9,9 +9,14 @@ import ShareButton from "./ShareButton";
 import DeadlineCountdown from "./DeadlineCountdown";
 import { getBestCtaUrl } from "@/lib/url-utils";
 import { decodeHtmlEntities } from "@/lib/html-entities";
+import { isLowQualityImageUrl } from "@/lib/images";
 
 // Display-time decoder — ensures existing DB records with encoded entities render cleanly
 const d = (text: string | null | undefined): string => (text ? decodeHtmlEntities(text) : "");
+
+// Minimum image file size (bytes) heuristic for card display.
+// Very small files are almost certainly icons/logos.
+const MIN_CARD_IMAGE_BYTES = 2048;
 
 // ── Category colours matching globals.css tokens ─────────────────────────
 const CATEGORY_STYLES: Record<string, { bg: string; color: string; label: string }> = {
@@ -143,7 +148,9 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
   const deadlineLabel = fmtDate(opportunity.applicationDeadline || opportunity.deadline);
   const eventDateLabel = fmtDate(opportunity.eventDate);
   const isVerifiedDeadline = ["verified", "source_provided"].includes(opportunity.deadlineKind ?? "");
-  const hasPrimaryImage = Boolean(opportunity.imageUrl) && !imgError;
+  // Reject low-quality image URLs (tiny logos, icons, thumbnails)
+  const isLowQualityUrl = Boolean(opportunity.imageUrl && isLowQualityImageUrl(opportunity.imageUrl));
+  const hasPrimaryImage = Boolean(opportunity.imageUrl) && !imgError && !isLowQualityUrl;
 
   // OG image fallback
   const ogImage = useOgImageFallback(opportunity, imgError);
@@ -200,6 +207,15 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
               alt={opportunity.imageAlt || `${opportunity.title} cover`}
               loading="lazy"
               className="w-full h-full object-cover"
+              onLoad={(e) => {
+                // Frontend dimension guard: reject images that are too small
+                // for card display (< 200px rendered width)
+                const img = e.currentTarget;
+                if (img.naturalWidth > 0 && img.naturalWidth < 200) {
+                  if (hasPrimaryImage) setImgError(true);
+                  else setOgFailed(true);
+                }
+              }}
               onError={() => {
                 if (hasPrimaryImage) setImgError(true);
                 else setOgFailed(true);

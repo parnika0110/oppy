@@ -441,4 +441,84 @@ describe("critical user scenarios", () => {
     // Should be broad, not exclude
     expect(level).not.toBe("exclude");
   });
+
+  // ── Data Engineering interest (taxonomy gap fix) ───────────────────
+
+  it("scores Data Engineering interest against data pipeline opportunities", () => {
+    const opp = makeOpp({
+      title: "Data Pipeline Engineer",
+      tags: ["etl", "airflow", "spark"],
+      description: "Build data pipelines and warehouses",
+    });
+    const prefs: DiscoveryPreferences = { interests: ["Data Engineering"] };
+    const score = scoreOpportunity(opp, prefs);
+    // Should match strongly via taxonomy keywords
+    expect(score.interests).toBeGreaterThanOrEqual(20);
+  });
+
+  it("scores Data Engineering interest against title match", () => {
+    const opp = makeOpp({ title: "Data Engineering Intern" });
+    const prefs: DiscoveryPreferences = { interests: ["Data Engineering"] };
+    const score = scoreOpportunity(opp, prefs);
+    expect(score.interests).toBeGreaterThanOrEqual(25);
+  });
+
+  // ── Custom interest fallback ───────────────────────────────────────
+
+  it("custom interest matches opportunity via direct text", () => {
+    const opp = makeOpp({
+      title: "Quantum Computing Research Fellow",
+      description: "Join our quantum computing research team",
+    });
+    const prefs: DiscoveryPreferences = { interests: ["quantum computing"] };
+    const score = scoreOpportunity(opp, prefs);
+    // "quantum computing" is not in taxonomy, but direct text match should work
+    expect(score.interests).toBeGreaterThanOrEqual(12);
+  });
+
+  it("custom interest does not match unrelated opportunity", () => {
+    const opp = makeOpp({
+      title: "Marketing Intern",
+      description: "Social media marketing role",
+    });
+    const prefs: DiscoveryPreferences = { interests: ["quantum computing"] };
+    const score = scoreOpportunity(opp, prefs);
+    // No match for "quantum computing" in marketing content
+    expect(score.interests).toBeLessThan(5);
+  });
+
+  it("short custom interest (<3 chars) does not trigger fallback", () => {
+    const opp = makeOpp({ title: "AI Engineer" });
+    const prefs: DiscoveryPreferences = { interests: ["ab"] };
+    const score = scoreOpportunity(opp, prefs);
+    // Short interests should not match via fallback
+    expect(score.interests).toBeLessThan(10);
+  });
+
+  // ── Combined scoring for test profile ──────────────────────────────
+
+  it("test profile: Python + Data Engineering + Beginner + Bengaluru + Remote", () => {
+    const opp = makeOpp({
+      title: "Python Data Engineering Intern",
+      tags: ["python", "data engineering", "etl"],
+      description: "Remote internship for beginners in Bengaluru",
+      location: "Bengaluru",
+      isRemote: true,
+      category: "Internship",
+    });
+    const prefs: DiscoveryPreferences = {
+      categories: ["Internship"],
+      interests: ["Data Engineering"],
+      location: "Bengaluru",
+      remote: true,
+      experience: "Beginner",
+    };
+    const score = scoreOpportunity(opp, prefs);
+    // Should be a strong match across all dimensions
+    expect(score.category).toBe(30);
+    expect(score.interests).toBeGreaterThanOrEqual(25);
+    expect(score.location).toBeGreaterThanOrEqual(20);
+    expect(score.experience).toBeGreaterThanOrEqual(8);
+    expect(score.total).toBeGreaterThanOrEqual(80);
+  });
 });

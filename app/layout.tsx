@@ -3,7 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/AuthContext";
 import AccentProvider from "@/components/AccentProvider";
 import Nav from "@/components/Nav";
-import { OppyMark } from "@/components/OppyLogo";
+
 import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
@@ -53,9 +53,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               className="flex items-center gap-1.5"
               style={{ color: "var(--ink)" }}
             >
-              <OppyMark size={28} />
-              <span className="font-display text-xl font-semibold tracking-tight">
-                PPY
+              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--ink)', lineHeight: 1 }}>
+                OPPY
               </span>
             </a>
 

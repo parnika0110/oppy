@@ -49,16 +49,14 @@ export default function Nav() {
           {isAdmin && (
             <a
               href="/admin"
-              className="hover:text-[var(--ink)] transition-colors"
-              style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.72rem", letterSpacing: "0.05em" }}
+              className="underline-hover hover:text-[var(--ink)] transition-colors"
             >
               Admin
             </a>
           )}
           <button
             onClick={handleLogout}
-            className="hover:text-[var(--ink)] transition-colors"
-            style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.72rem", letterSpacing: "0.05em" }}
+            className="underline-hover hover:text-[var(--ink)] transition-colors cursor-pointer bg-transparent border-none p-0"
           >
             Logout
           </button>
@@ -70,8 +68,7 @@ export default function Nav() {
           </a>
           <a
             href="/signup"
-            className="hover:text-[var(--ink)] transition-colors"
-            style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.72rem", letterSpacing: "0.05em" }}
+            className="underline-hover hover:text-[var(--ink)] transition-colors"
           >
             Sign up
           </a>
