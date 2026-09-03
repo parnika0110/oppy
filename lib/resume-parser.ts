@@ -81,14 +81,25 @@ const DURATION_PATTERN = /(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|ma
  * Extract text from a PDF buffer.
  */
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({ data: new Uint8Array(buffer) });
-  try {
-    const result = await parser.getText();
-    return result.text || "";
-  } finally {
-    await parser.destroy();
+  // Use pdfjs-dist legacy build directly — avoids @napi-rs/canvas dependency
+  // that fails on Lambda (missing native binaries → DOMMatrix is not defined).
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const doc = await pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    useSystemFonts: false,
+    disableFontFace: true,
+    isEvalSupported: false,
+  }).promise;
+
+  let fullText = "";
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+    fullText += content.items.map((item: any) => item.str).join(" ") + "\n";
   }
+
+  await doc.destroy();
+  return fullText;
 }
 
 /**
