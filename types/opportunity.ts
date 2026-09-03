@@ -135,6 +135,9 @@ export interface OpportunityDocument {
   lastSeenAt?: string | null;
   firstSeenAt?: string | null;
   lastUpdatedAt?: string | null;
+  /** Structured metadata — may be populated by ingestion or extracted from description. */
+  stipend?: string | null;
+  duration?: string | null;
   sourcePublishedAt?: string | null;
   lastIngestionRunId?: string | null;
   nextRefreshAt?: string | null;
@@ -169,6 +172,9 @@ export interface RawOpportunity extends Omit<CreateOpportunityInput, "deadline">
   deadline?: Date | string | null;
   sourcePlatform: SourcePlatform;
   sourceId?: string; // Unique ID from the source platform (e.g. Devpost slug)
+  /** Structured metadata — optional, extracted by adapters that can provide it. */
+  stipend?: string;
+  duration?: string;
 }
 
 /**

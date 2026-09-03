@@ -10,6 +10,7 @@ import DeadlineCountdown from "./DeadlineCountdown";
 import { getBestCtaUrl } from "@/lib/url-utils";
 import { decodeHtmlEntities } from "@/lib/html-entities";
 import { isLowQualityImageUrl } from "@/lib/images";
+import { extractStipend, extractDuration } from "@/lib/card-metadata";
 
 // Display-time decoder — ensures existing DB records with encoded entities render cleanly
 const d = (text: string | null | undefined): string => (text ? decodeHtmlEntities(text) : "");
@@ -27,17 +28,6 @@ const CATEGORY_STYLES: Record<string, { bg: string; color: string; label: string
   Scholarship: { bg: "var(--blue)",     color: "#1F4A62", label: "Scholarship" },
   Grant:       { bg: "#E8D5C4",         color: "#6B3F1F", label: "Grant" },
   Event:       { bg: "#F0E8FF",         color: "#5B3D8A", label: "Event" },
-};
-
-// ── Gradient avatar backgrounds ───────────────────────────────────────────
-const AVATAR_GRADIENTS: Record<string, string> = {
-  Job:         "linear-gradient(135deg, #BFE0CC 0%, #5FA37B 100%)",
-  Hackathon:   "linear-gradient(135deg, #D2C9EE 0%, #8B7DC7 100%)",
-  Internship:  "linear-gradient(135deg, #F0C6A0 0%, #C98A4B 100%)",
-  Fellowship:  "linear-gradient(135deg, #B3CDA8 0%, #6E9463 100%)",
-  Scholarship: "linear-gradient(135deg, #ACCEDF 0%, #5D8BA3 100%)",
-  Grant:       "linear-gradient(135deg, #E8D5C4 0%, #B8946C 100%)",
-  Event:       "linear-gradient(135deg, #E8D0FF 0%, #9B6CC7 100%)",
 };
 
 // ── Deadline urgency helper ───────────────────────────────────────────────
@@ -105,31 +95,31 @@ function useOgImageFallback(opp: OpportunityDocument, primaryImgFailed: boolean)
   return ogImage;
 }
 
-// ── Image fallback avatar ─────────────────────────────────────────────────
+// ── Category-specific OPPY-generated fallback art ─────────────────────────
+const CATEGORY_ICONS: Record<string, { emoji: string; gradient: string }> = {
+  Job:         { emoji: "💼", gradient: "linear-gradient(135deg, #BFE0CC 0%, #5FA37B 100%)" },
+  Internship:  { emoji: "🎓", gradient: "linear-gradient(135deg, #F0C6A0 0%, #C98A4B 100%)" },
+  Hackathon:   { emoji: "⚡", gradient: "linear-gradient(135deg, #D2C9EE 0%, #8B7DC7 100%)" },
+  Fellowship:  { emoji: "🌟", gradient: "linear-gradient(135deg, #B3CDA8 0%, #6E9463 100%)" },
+  Scholarship: { emoji: "🏆", gradient: "linear-gradient(135deg, #ACCEDF 0%, #5D8BA3 100%)" },
+  Grant:       { emoji: "💰", gradient: "linear-gradient(135deg, #E8D5C4 0%, #B8946C 100%)" },
+  Event:       { emoji: "📅", gradient: "linear-gradient(135deg, #E8D0FF 0%, #9B6CC7 100%)" },
+};
+
 function OrgAvatar({ org, category }: { org: string; category: string }) {
-  // Get 1-2 letter initials from organization name
-  const initials = (() => {
-    const words = org.replace(/[^a-zA-Z\s]/g, "").trim().split(/\s+/).filter(Boolean);
-    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
-    if (words.length === 1 && words[0].length >= 2) return words[0].substring(0, 2).toUpperCase();
-    return org.substring(0, 2).toUpperCase();
-  })();
-  const gradient = AVATAR_GRADIENTS[category] ?? AVATAR_GRADIENTS.Event;
+  const { emoji, gradient } = CATEGORY_ICONS[category] ?? CATEGORY_ICONS.Event;
   return (
     <div
-      className="h-36 w-full rounded-xl flex flex-col items-center justify-center mb-4 overflow-hidden gap-1"
+      className="h-36 w-full rounded-xl flex flex-col items-center justify-center mb-4 overflow-hidden gap-2"
       style={{ background: gradient }}
       aria-hidden="true"
     >
-      <span
-        className="font-display font-bold select-none"
-        style={{ fontSize: "2.5rem", color: "rgba(255,255,255,0.85)", lineHeight: 1 }}
-      >
-        {initials}
+      <span className="select-none" style={{ fontSize: "2.2rem", lineHeight: 1 }}>
+        {emoji}
       </span>
       <span
         className="font-mono select-none uppercase"
-        style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.6)", letterSpacing: "0.1em" }}
+        style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.7)", letterSpacing: "0.1em" }}
       >
         {category}
       </span>
@@ -173,6 +163,10 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
   const sourcePlatform = rawPlatform === "Other" ? (opportunity.source || opportunity.organization || null) : rawPlatform;
   const isRolling = opportunity.deadlineKind === "rolling";
 
+  // Structured metadata — prefer stored fields, fall back to description extraction
+  const stipend = opportunity.stipend || extractStipend(opportunity.description);
+  const duration = opportunity.duration || extractDuration(opportunity.description);
+
   // Category-aware CTA label
   const ctaLabel = (() => {
     const cat = opportunity.category;
@@ -200,7 +194,7 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
       <Link href={`/opportunity/${opportunity._id}?from=${encodeURIComponent(pathname + (searchParams.toString() ? `?${searchParams.toString()}` : ""))}`} className="group flex flex-col h-full p-5" target="_self">
         {/* ── Image or avatar ──── */}
         {showImage ? (
-          <div className="relative w-full rounded-xl mb-4 overflow-hidden" style={{ aspectRatio: '16/9', background: 'var(--paper-2)' }}>
+          <div className="relative w-full rounded-xl mb-3 overflow-hidden" style={{ aspectRatio: '16/9', background: 'var(--paper-2)' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={hasPrimaryImage ? opportunity.imageUrl! : ogImage!}
@@ -208,8 +202,6 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
               loading="lazy"
               className="w-full h-full object-cover"
               onLoad={(e) => {
-                // Frontend dimension guard: reject images that are too small
-                // for card display (< 200px rendered width)
                 const img = e.currentTarget;
                 if (img.naturalWidth > 0 && img.naturalWidth < 200) {
                   if (hasPrimaryImage) setImgError(true);
@@ -226,22 +218,19 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
           <OrgAvatar org={opportunity.organization} category={opportunity.category} />
         )}
 
-        {/* ── Meta row ──── */}
+        {/* ── 1. Type + Source badges ──── */}
         <div className="flex items-center gap-2 mb-2 flex-wrap">
-          {/* Category pill */}
           <span
             className="inline-block text-[0.68rem] font-semibold px-2 py-0.5 rounded-full"
             style={{ fontFamily: "'JetBrains Mono', monospace", background: cat.bg, color: cat.color, letterSpacing: "0.02em" }}
           >
             {cat.label}
           </span>
-          {/* Source badge */}
           {sourcePlatform && (
             <span className="eyebrow" style={{ fontSize: "0.65rem" }}>
               via {d(sourcePlatform)}
             </span>
           )}
-          {/* NEW badge */}
           {isNew && (
             <span
               className="inline-block text-[0.65rem] font-semibold px-2 py-0.5 rounded-full"
@@ -250,26 +239,14 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
               NEW
             </span>
           )}
-          {/* Deadline countdown */}
-          <DeadlineCountdown
-            deadline={opportunity.applicationDeadline || opportunity.deadline}
-            deadlineKind={opportunity.deadlineKind}
-            compact
-          />
-          {/* Quality score */}
           {(opportunity as any).qualityScore && (opportunity as any).qualityScore >= 80 && (
             <span
               className="inline-block text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full"
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                background: "#D1FAE5",
-                color: "#065F46",
-              }}
+              style={{ fontFamily: "'JetBrains Mono', monospace", background: "#D1FAE5", color: "#065F46" }}
             >
               ✓ Verified
             </span>
           )}
-          {/* Urgency badge */}
           {urgency && (
             <span
               className="inline-block text-[0.65rem] font-semibold px-2 py-0.5 rounded-full ml-auto"
@@ -280,12 +257,12 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
           )}
         </div>
 
-        {/* ── Org + Title ──── */}
-        <p className="eyebrow truncate" style={{ fontSize: "0.68rem" }}>
+        {/* ── 2. Company — clearly readable ──── */}
+        <p className="font-medium text-xs" style={{ color: "var(--accent-deep)" }}>
           <button
             type="button"
             className="hover:underline bg-transparent border-none p-0 cursor-pointer"
-            style={{ color: "var(--accent-deep)", font: "inherit", fontSize: "inherit" }}
+            style={{ color: "inherit", font: "inherit" }}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -295,44 +272,73 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
             {d(opportunity.organization)}
           </button>
         </p>
+
+        {/* ── 3. Title — strongest text ──── */}
         <h3
           className="mt-0.5 font-display font-semibold leading-snug line-clamp-2 group-hover:text-[var(--accent-deep)] transition-colors"
-          style={{ fontSize: "1rem", color: "var(--ink)" }}
+          style={{ fontSize: "1.05rem", color: "var(--ink)" }}
         >
           {d(opportunity.title)}
         </h3>
 
-        {/* ── Location + mode ──── */}
+        {/* ── 4. Location / remote ──── */}
         {(opportunity.location || opportunity.isRemote) && (
-          <p className="mt-1.5 text-xs" style={{ color: "var(--ink-soft)" }}>
+          <p className="mt-1.5 text-xs line-clamp-1" style={{ color: "var(--ink-soft)" }}>
             {opportunity.isRemote ? "🌐 Remote" : `📍 ${d(opportunity.location)}`}
           </p>
         )}
 
-        {/* ── Dates ──── */}
-        <div className="mt-2 space-y-0.5">
-          {eventDateLabel && (
-            <p className="text-xs" style={{ color: "var(--ink-soft)" }}>
-              <span className="eyebrow" style={{ fontSize: "0.62rem" }}>Event</span>{" "}
-              {eventDateLabel}
-            </p>
-          )}
-          {isVerifiedDeadline && deadlineLabel ? (
-            <p className="text-xs font-medium" style={{ color: "var(--ink)" }}>
-              <span className="eyebrow" style={{ fontSize: "0.62rem" }}>Deadline</span>{" "}
-              {deadlineLabel}
-            </p>
-          ) : isRolling ? (
-            <p className="text-xs" style={{ color: "var(--sage-deep)" }}>
-              <span className="eyebrow" style={{ fontSize: "0.62rem" }}>Deadline</span>{" "}
-              Rolling / Open
-            </p>
-          ) : null /* Do NOT show unavailable deadline on cards */}
-        </div>
+        {/* ── 5. Metadata strip: Stipend | Duration | Deadline ──── */}
+        {(() => {
+          const hasStipend = Boolean(stipend);
+          const hasDuration = Boolean(duration);
+          const hasDeadline = (isVerifiedDeadline && deadlineLabel) || isRolling || eventDateLabel;
+          if (!hasStipend && !hasDuration && !hasDeadline) return null;
+          return (
+            <div
+              className="mt-2.5 grid gap-x-4 gap-y-1 rounded-lg px-3 py-2"
+              style={{
+                background: 'var(--paper-2)',
+                gridTemplateColumns: `repeat(${Math.min([hasStipend, hasDuration, hasDeadline].filter(Boolean).length, 3)}, 1fr)`,
+              }}
+            >
+              {hasStipend && (
+                <div>
+                  <p className="text-[0.6rem] uppercase tracking-wider font-medium" style={{ color: 'var(--ink-soft)', fontFamily: "'JetBrains Mono', monospace" }}>
+                    💰 Stipend
+                  </p>
+                  <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>
+                    {d(stipend)}
+                  </p>
+                </div>
+              )}
+              {hasDuration && (
+                <div>
+                  <p className="text-[0.6rem] uppercase tracking-wider font-medium" style={{ color: 'var(--ink-soft)', fontFamily: "'JetBrains Mono', monospace" }}>
+                    ⏱ Duration
+                  </p>
+                  <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>
+                    {d(duration)}
+                  </p>
+                </div>
+              )}
+              {hasDeadline && (
+                <div>
+                  <p className="text-[0.6rem] uppercase tracking-wider font-medium" style={{ color: 'var(--ink-soft)', fontFamily: "'JetBrains Mono', monospace" }}>
+                    📅 Deadline
+                  </p>
+                  <p className="text-xs font-semibold mt-0.5" style={{ color: urgency ? urgency.style.color : 'var(--ink)' }}>
+                    {isRolling ? 'Rolling / Open' : eventDateLabel || deadlineLabel}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
-        {/* ── Tags ──── */}
+        {/* ── 6. Tags ──── */}
         {opportunity.tags && opportunity.tags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
             {opportunity.tags.slice(0, 3).map((tag) => (
               <span key={tag} className="chip" style={{ fontSize: "0.65rem", padding: "0.18rem 0.55rem" }}>
                 {d(tag)}
@@ -341,7 +347,7 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
           </div>
         )}
 
-        {/* ── CTA ──── */}
+        {/* ── 7. CTA ──── */}
         <div className="mt-auto pt-3 flex items-center justify-between gap-2">
           {isExternalCta ? (
             <span
