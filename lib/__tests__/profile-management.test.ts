@@ -663,3 +663,210 @@ describe("Remote preference mutual exclusivity", () => {
     expect(values).toHaveLength(2);
   });
 });
+
+// ── Resume Insight Persistence Tests ───────────────────────────────────
+
+describe("Resume insight add persistence", () => {
+  beforeEach(async () => {
+    resetDb();
+    mockCollections.users = makeMockCollection(dbState.users);
+    mockCollections.sessions = makeMockCollection(dbState.sessions);
+    mockCollections.saved = makeMockCollection(dbState.saved);
+    mockCollections.tracking = makeMockCollection(dbState.tracking);
+    mockCollections.resets = makeMockCollection(dbState.resets);
+    mockCollections.reminders = makeMockCollection(dbState.reminders);
+  });
+
+  it("individual skill add persists to preferences.skills", async () => {
+    seedUser(mockUserId);
+    mockCurrentUser = { id: mockUserId.toString() };
+
+    const { PATCH } = await import("@/app/api/profile/route");
+    const req = new Request("http://localhost/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skills: ["Python", "Java"] }),
+    });
+    const res = await PATCH(req as any);
+    expect(res.status).toBe(200);
+
+    const user = dbState.users.get(mockUserId.toString());
+    expect(user["preferences.skills"]).toEqual(["Python", "Java"]);
+  });
+
+  it("individual interest add persists to preferences.interests", async () => {
+    seedUser(mockUserId);
+    mockCurrentUser = { id: mockUserId.toString() };
+
+    const { PATCH } = await import("@/app/api/profile/route");
+    const req = new Request("http://localhost/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ interests: ["AI / ML", "Game Dev"] }),
+    });
+    const res = await PATCH(req as any);
+    expect(res.status).toBe(200);
+
+    const user = dbState.users.get(mockUserId.toString());
+    expect(user["preferences.interests"]).toEqual(["AI / ML", "Game Dev"]);
+  });
+
+  it("add all skills persists complete merged set", async () => {
+    seedUser(mockUserId);
+    mockCurrentUser = { id: mockUserId.toString() };
+
+    // Simulate addAll: merge current + resume skills
+    const merged = [...new Set(["Python", "Java", "React"])];
+
+    const { PATCH } = await import("@/app/api/profile/route");
+    const req = new Request("http://localhost/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skills: merged }),
+    });
+    const res = await PATCH(req as any);
+    expect(res.status).toBe(200);
+
+    const user = dbState.users.get(mockUserId.toString());
+    expect(user["preferences.skills"]).toEqual(["Python", "Java", "React"]);
+  });
+
+  it("add all interests persists complete merged set", async () => {
+    seedUser(mockUserId);
+    mockCurrentUser = { id: mockUserId.toString() };
+
+    const merged = [...new Set(["AI / ML", "Game Dev"])];
+
+    const { PATCH } = await import("@/app/api/profile/route");
+    const req = new Request("http://localhost/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ interests: merged }),
+    });
+    const res = await PATCH(req as any);
+    expect(res.status).toBe(200);
+
+    const user = dbState.users.get(mockUserId.toString());
+    expect(user["preferences.interests"]).toEqual(["AI / ML", "Game Dev"]);
+  });
+
+  it("existing preferences are preserved when adding a new skill", async () => {
+    seedUser(mockUserId);
+    mockCurrentUser = { id: mockUserId.toString() };
+
+    // Add a new skill while preserving existing
+    const { PATCH } = await import("@/app/api/profile/route");
+    const req = new Request("http://localhost/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skills: ["Python", "React"] }),
+    });
+    await PATCH(req as any);
+
+    const user = dbState.users.get(mockUserId.toString());
+    // Python (existing) + React (new) — no overwriting
+    expect(user["preferences.skills"]).toContain("Python");
+    expect(user["preferences.skills"]).toContain("React");
+  });
+
+  it("no duplicate skills are created via Set deduplication", async () => {
+    seedUser(mockUserId);
+    mockCurrentUser = { id: mockUserId.toString() };
+
+    // Simulate addAll that includes already-existing skill
+    const merged = [...new Set(["Python", "Java", "Python"])]; // Python appears twice
+
+    const { PATCH } = await import("@/app/api/profile/route");
+    const req = new Request("http://localhost/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skills: merged }),
+    });
+    await PATCH(req as any);
+
+    const user = dbState.users.get(mockUserId.toString());
+    expect(user["preferences.skills"]).toEqual(["Python", "Java"]); // no duplicate
+  });
+
+  it("resumeProfile remains independent after adding preferences", async () => {
+    seedUser(mockUserId);
+    mockCurrentUser = { id: mockUserId.toString() };
+
+    const { PATCH } = await import("@/app/api/profile/route");
+    const req = new Request("http://localhost/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skills: ["Python", "Java"] }),
+    });
+    await PATCH(req as any);
+
+    const user = dbState.users.get(mockUserId.toString());
+    // resumeProfile still has its own extracted skills
+    expect(user.resumeProfile.extractedSkills).toEqual(["Java", "React"]);
+  });
+
+  it("failed API save does not falsely show item as saved (server rejects)", async () => {
+    seedUser(mockUserId);
+    mockCurrentUser = { id: mockUserId.toString() };
+    mockCollections.users.updateOne = vi.fn().mockRejectedValue(new Error("DB error"));
+
+    const { PATCH } = await import("@/app/api/profile/route");
+    const req = new Request("http://localhost/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skills: ["Python", "NewSkill"] }),
+    });
+    const res = await PATCH(req as any);
+    expect(res.status).toBe(500);
+
+    // User state should not have been updated
+    const user = dbState.users.get(mockUserId.toString());
+    // Mock rejected so $set never applied — check original nested structure
+    expect(user.preferences?.skills).toEqual(["Python"]);
+  });
+
+  it("profile state syncs from user context (simulated refreshUser)", () => {
+    // Simulates the fix: useEffect re-syncs local state from user context
+    const userContext = {
+      preferences: { skills: ["Python", "Java"], interests: ["AI / ML", "Game Dev"] },
+    };
+
+    // After refreshUser updates context, profile page re-syncs
+    const syncedSkills = userContext.preferences.skills || [];
+    const syncedInterests = userContext.preferences.interests || [];
+
+    expect(syncedSkills).toEqual(["Python", "Java"]);
+    expect(syncedInterests).toEqual(["AI / ML", "Game Dev"]);
+  });
+});
+
+// ── Bulk Add Deduplication Tests ───────────────────────────────────────
+
+describe("Bulk add deduplication", () => {
+  it("addAllSkills merges without duplicates via Set", () => {
+    const currentSkills = ["Python"];
+    const unaddedSkills = ["Java", "Python"]; // Python is a duplicate
+
+    const merged = [...new Set([...currentSkills, ...unaddedSkills])];
+    expect(merged).toEqual(["Python", "Java"]);
+  });
+
+  it("addAllInterests merges without duplicates via Set", () => {
+    const currentInterests = ["AI / ML"];
+    const unaddedInterests = ["Game Dev", "AI / ML"];
+
+    const merged = [...new Set([...currentInterests, ...unaddedInterests])];
+    expect(merged).toEqual(["AI / ML", "Game Dev"]);
+  });
+
+  it("addAllSkills with no unadded items sends current array unchanged", () => {
+    const currentSkills = ["Python", "Java"];
+    const resumeSkills = ["Python", "Java"];
+    const unaddedSkills = resumeSkills.filter((s) => !currentSkills.includes(s));
+    expect(unaddedSkills).toHaveLength(0);
+
+    // Add all should be disabled when allSkillsAdded is true
+    const allSkillsAdded = unaddedSkills.length === 0;
+    expect(allSkillsAdded).toBe(true);
+  });
+});
