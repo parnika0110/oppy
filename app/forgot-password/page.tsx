@@ -66,12 +66,9 @@ function ForgotPasswordForm() {
       });
       const data = await res.json();
       if (res.ok) {
-        // Restart countdown with fresh expiry
-        if (data.expiresIn) {
+        // Only start countdown when server provides a valid expiresIn
+        if (typeof data.expiresIn === "number" && data.expiresIn > 0) {
           setExpiresAt(Date.now() + data.expiresIn * 1000);
-        } else {
-          // Fallback: 15 minutes from now (server didn't return expiresIn)
-          setExpiresAt(Date.now() + 15 * 60 * 1000);
         }
         setResendCooldown(30);
         setError(null);
@@ -107,12 +104,9 @@ function ForgotPasswordForm() {
       if (res.ok) {
         setStep("reset");
         setError(null);
-        // Start countdown from server-provided expiry
-        if (data.expiresIn) {
+        // Only start countdown when server provides a valid expiresIn
+        if (typeof data.expiresIn === "number" && data.expiresIn > 0) {
           setExpiresAt(Date.now() + data.expiresIn * 1000);
-        } else {
-          // Fallback: 15 minutes from now
-          setExpiresAt(Date.now() + 15 * 60 * 1000);
         }
       } else {
         setError(data.error || "Failed to send reset code.");
