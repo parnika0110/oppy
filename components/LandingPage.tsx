@@ -1,5 +1,6 @@
 import OpportunityCard from "@/components/OpportunityCard";
 import DiscoveryWizard from "@/components/DiscoveryWizard";
+import AnimatedHeadline from "@/components/AnimatedHeadline";
 
 import ThemedOppyOrb from "@/components/ThemedOppyOrb";
 import SearchBar from "@/components/SearchBar";
@@ -207,13 +208,7 @@ export default function LandingPage({ liveOpps, activeCount }: { liveOpps: Oppor
         <div className="lp-problem">
           <div className="lp-problem-left">
             <p className="eyebrow" style={{ marginBottom: "1.25rem" }}>The problem</p>
-            <h2 className="lp-section-headline">
-              You shouldn&apos;t need
-              <br />
-              17 tabs to find one
-              <br />
-              <span style={{ color: "var(--accent-deep)" }}>good opportunity.</span>
-            </h2>
+            <AnimatedHeadline />
           </div>
           <div className="lp-problem-right">
             <div className="lp-tabs-visual">

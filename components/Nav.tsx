@@ -3,6 +3,7 @@
 import { useAuth } from "@/lib/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import LogoutConfirmModal from "./LogoutConfirmModal";
 
 /**
  * Check if the browser has an admin session cookie.
@@ -18,12 +19,14 @@ export default function Nav() {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     setIsAdmin(hasAdminSession());
   }, [user]); // Re-check when auth state changes
 
   async function handleLogout() {
+    setShowLogoutModal(false);
     await logout();
     router.push("/");
     router.refresh();
@@ -55,11 +58,16 @@ export default function Nav() {
             </a>
           )}
           <button
-            onClick={handleLogout}
+            onClick={() => setShowLogoutModal(true)}
             className="underline-hover hover:text-[var(--ink)] transition-colors cursor-pointer bg-transparent border-none p-0"
           >
             Logout
           </button>
+          <LogoutConfirmModal
+            open={showLogoutModal}
+            onConfirm={handleLogout}
+            onCancel={() => setShowLogoutModal(false)}
+          />
         </>
       ) : (
         <>
