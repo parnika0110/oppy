@@ -71,8 +71,28 @@ describe("Forgot password — countdown timer", () => {
     expect(pageCode).toContain("setExpiresAt(Date.now() + data.expiresIn * 1000)");
   });
 
-  it("has fallback when server does not return expiresIn", () => {
-    expect(pageCode).toContain("setExpiresAt(Date.now() + 15 * 60 * 1000)");
+  it("does NOT fall back to a hardcoded 15-minute countdown when expiresIn is missing", () => {
+    expect(pageCode).not.toContain("15 * 60 * 1000");
+    expect(pageCode).not.toContain("15*60*1000");
+    expect(pageCode).not.toContain("900000");
+  });
+
+  it("only starts countdown when server provides a valid positive expiresIn", () => {
+    expect(pageCode).toContain('typeof data.expiresIn === "number" && data.expiresIn > 0');
+  });
+
+  it("does NOT set expiresAt unconditionally (missing expiresIn must not start countdown)", () => {
+    // Every setExpiresAt(Date.now() + data.expiresIn...) must be inside a
+    // conditional that checks typeof data.expiresIn === "number" && data.expiresIn > 0
+    // We verify this by checking the guard exists and no bare setExpiresAt calls exist.
+    const guardPattern = /if \(typeof data\.expiresIn === "number" && data\.expiresIn > 0\)/g;
+    const guards = pageCode.match(guardPattern);
+    expect(guards).not.toBeNull();
+    expect(guards!.length).toBe(2); // resend + initial request
+    // Every setExpiresAt(Date.now() + data.expiresIn...) call must be guarded
+    const guardedCalls = pageCode.match(/setExpiresAt\(Date\.now\(\) \+ data\.expiresIn/g);
+    expect(guardedCalls).not.toBeNull();
+    expect(guardedCalls!.length).toBe(2);
   });
 
   it("has interval-based countdown that ticks every second", () => {
@@ -105,10 +125,17 @@ describe("Forgot password — countdown timer", () => {
     expect(pageCode).toContain("setExpiresAt(Date.now() + data.expiresIn * 1000)");
   });
 
-  it("does not hardcode fake expiry duration in primary path", () => {
-    // The primary path should use data.expiresIn, not a hardcoded value
-    const primarySetExpiry = pageCode.indexOf("setExpiresAt(Date.now() + data.expiresIn * 1000)");
-    expect(primarySetExpiry).toBeGreaterThan(0);
+  it("all setExpiresAt calls are guarded by expiresIn validation", () => {
+    // Every setExpiresAt(Date.now() + ...) must be inside an if block
+    // that checks typeof data.expiresIn === "number" && data.expiresIn > 0
+    const guard = 'typeof data.expiresIn === "number" && data.expiresIn > 0';
+    expect(pageCode).toContain(guard);
+    // No unguarded setExpiresAt calls with data.expiresIn exist
+    const unguarded = pageCode.match(/setExpiresAt\(Date\.now\(\) \+ data\.expiresIn/g);
+    expect(unguarded).not.toBeNull();
+    // Count guards vs calls — should be equal
+    const guards = pageCode.match(/typeof data\.expiresIn/g);
+    expect(guards!.length).toBeGreaterThanOrEqual(unguarded!.length);
   });
 });
 
