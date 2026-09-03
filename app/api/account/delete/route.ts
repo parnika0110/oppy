@@ -32,8 +32,15 @@ import { ObjectId } from "mongodb";
  */
 export async function POST(request: NextRequest) {
   try {
+    // ── Safe diagnostic: never log cookie values or secrets ──────────
+    const cookieHeader = request.headers.get("cookie") || "";
+    const hasCookie = cookieHeader.includes("oppy_session=");
+    const content_type = request.headers.get("content-type") || "";
+    console.log(`[Account Delete] Auth check: hasCookie=${hasCookie}, content-type=${content_type.substring(0, 50)}`);
+
     const user = await getCurrentUser(request);
     if (!user) {
+      console.error(`[Account Delete] 401: hasCookie=${hasCookie}, content-type=${content_type.substring(0, 50)}`);
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 

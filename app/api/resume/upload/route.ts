@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/userAuth";
-import { getUsersCollection } from "@/lib/mongodb";
+import { getCurrentUser, SESSION_COOKIE } from "@/lib/userAuth";
+import { getUsersCollection, getSessionsCollection } from "@/lib/mongodb";
 import { parseResume } from "@/lib/resume-parser";
 import { ObjectId } from "mongodb";
 
@@ -18,8 +18,37 @@ const ALLOWED_TYPES = new Set([
  */
 export async function POST(request: NextRequest) {
   try {
+    // ── Safe diagnostic: never log cookie values or secrets ──────────
+    const cookieHeader = request.headers.get("cookie") || "";
+    const hasCookie = cookieHeader.includes(`${SESSION_COOKIE}=`);
+    const ct = request.headers.get("content-type") || "";
+    console.log(`[Resume Upload] hasCookie=${hasCookie}, content-type=${ct.substring(0, 60)}`);
+
     const user = await getCurrentUser(request);
     if (!user) {
+      // Trace which step failed — safe: no secrets logged
+      let failure = "unknown";
+      if (!hasCookie) {
+        failure = "no_cookie_in_request";
+      } else {
+        // Token was in cookie but session lookup or user lookup failed
+        const match = cookieHeader.match(new RegExp(`${SESSION_COOKIE}=([^;]+)`));
+        const token = match?.[1];
+        if (!token) {
+          failure = "token_parse_error";
+        } else {
+          const sessions = await getSessionsCollection();
+          const session = await sessions.findOne({ token });
+          if (!session) failure = "session_not_found_in_db";
+          else if (new Date(session.expiresAt).getTime() < Date.now()) failure = "session_expired";
+          else {
+            const users = await getUsersCollection();
+            const u = await users.findOne({ _id: session.userId });
+            failure = u ? "user_found_but_getCurrentUser_failed" : "user_not_found_in_db";
+          }
+        }
+      }
+      console.error(`[Resume Upload] 401 — failure: ${failure}`);
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
