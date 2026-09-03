@@ -358,6 +358,9 @@ async function runPipelineInner(sourceName: string | undefined, pipelineStart: n
             if (exists.sourcePlatform === "Other" && raw.sourcePlatform !== "Other") {
               updates.sourcePlatform = raw.sourcePlatform;
             }
+            // Backfill structured metadata if missing on existing record
+            if (raw.stipend && !(exists as any).stipend) updates.stipend = raw.stipend;
+            if (raw.duration && !(exists as any).duration) updates.duration = raw.duration;
 
             await collection.updateOne({ _id: exists._id }, { $set: updates });
             result.skipped++;
@@ -401,6 +404,9 @@ async function runPipelineInner(sourceName: string | undefined, pipelineStart: n
             discoveredAt: now,
             createdAt: now,
             updatedAt: now,
+            // Structured metadata (optional — adapters that can provide it set these)
+            stipend: raw.stipend || null,
+            duration: raw.duration || null,
             // Empty slots for later enrichment
             aiSummary: null,
             categoryValidation: null,

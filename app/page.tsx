@@ -112,12 +112,13 @@ async function getTraditionalFiltered(params: Record<string, string | undefined>
   const location = params.location?.trim();
   const tag = params.tag?.trim();
   const remote = params.remote;
+  const experience = params.experience;
   const sort = params.sort || "recommended";
   const showClosed = params.showClosed === "true" || params.showExpired === "true";
   const page = Math.max(1, parseInt(params.page || "1", 10));
   const limit = Math.min(50, Math.max(1, parseInt(params.limit || "24", 10)));
 
-  const filter = publicOpportunityFilter({ q, category, showClosed });
+  const filter = publicOpportunityFilter({ q, category, categories: params.categories, interests: params.interests, location, tag, remote, experience, showClosed });
   const sortSpec = opportunitySort(sort);
 
   const collection = await getOpportunitiesCollection();

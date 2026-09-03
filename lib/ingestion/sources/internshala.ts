@@ -250,7 +250,10 @@ function parseCard(
     sourcePlatform: "Internshala",
     sourceId,
     tags: roleTags,
-  };
+    // Structured metadata extracted from listing page
+    stipend: stipend || undefined,
+    duration: duration || undefined,
+  } as any;
 }
 
 /**
