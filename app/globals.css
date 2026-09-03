@@ -436,8 +436,19 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
 .lp-problem {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4rem;
+  gap: 3rem;
   align-items: start;
+}
+
+.lp-problem-left {
+  max-width: 32rem;
+}
+
+.lp-problem-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
 }
 
 .lp-tabs-visual {
@@ -490,6 +501,62 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
   line-height: 1.65;
   color: var(--ink-soft);
   max-width: 24rem;
+  text-align: center;
+}
+
+/* ── OPPYortunity brand treatment ──────────────────────────────────────── */
+
+.lp-headline-accent {
+  color: var(--accent-deep);
+}
+
+.oppytunity {
+  display: inline;
+  position: relative;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.oppytunity--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.oppytunity-oppy {
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--lavender-deep), var(--accent-deep));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  position: relative;
+}
+
+.oppytunity--visible .oppytunity-oppy {
+  animation: oppy-sweep 0.8s ease 0.3s both;
+}
+
+@keyframes oppy-sweep {
+  0% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.3);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oppytunity {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .oppytunity--visible .oppytunity-oppy {
+    animation: none;
+  }
 }
 
 /* ── Live Opportunities ────────────────────────────────────────────────── */
