@@ -8,6 +8,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        "oppy-purple": "#8B7DC7",
         urgency: {
           normal: "#3b82f6",   // blue
           warning: "#f59e0b",  // amber
