@@ -81,25 +81,52 @@ const DURATION_PATTERN = /(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|ma
  * Extract text from a PDF buffer.
  */
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  // Use pdfjs-dist legacy build directly — avoids @napi-rs/canvas dependency
-  // that fails on Lambda (missing native binaries → DOMMatrix is not defined).
-  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const doc = await pdfjsLib.getDocument({
-    data: new Uint8Array(buffer),
-    useSystemFonts: false,
-    disableFontFace: true,
-    isEvalSupported: false,
-  }).promise;
+  // Use pdf2json — pure JS, no @napi-rs/canvas, no DOMMatrix needed.
+  // Unlike pdfjs-dist, pdf2json does not require native canvas binaries.
+  const PDFParser = (await import("pdf2json")).default;
+  const parser = new PDFParser();
 
-  let fullText = "";
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const content = await page.getTextContent();
-    fullText += content.items.map((item: any) => item.str).join(" ") + "\n";
-  }
+  return new Promise<string>((resolve, reject) => {
+    parser.on("pdfParser_dataError", (errData: any) => {
+      const msg = errData?.parserError?.message || "Failed to parse PDF";
+      reject(new Error(msg));
+    });
 
-  await doc.destroy();
-  return fullText;
+    parser.on("pdfParser_dataReady", () => {
+      // NOTE: getRawTextContent() is broken in pdf2json 4.x — it returns ""
+      // even for valid text PDFs. Extract directly from the parsed data instead.
+      const data = parser.data as any;
+      let text = "";
+      if (data?.Pages) {
+        for (const pg of data.Pages) {
+          if (pg.Texts) {
+            for (const t of pg.Texts) {
+              if (t.R) {
+                for (const r of t.R) {
+                  try {
+                    text += decodeURIComponent(r.T || "");
+                  } catch {
+                    text += r.T || "";
+                  }
+                  text += " ";
+                }
+              }
+              text += "\n";
+            }
+          }
+        }
+      }
+      parser.destroy();
+      resolve(text);
+    });
+
+    try {
+      // pdf2json 4.x crashes with Node.js Buffer — must use Uint8Array
+      parser.parseBuffer(new Uint8Array(buffer) as any);
+    } catch (err) {
+      reject(err instanceof Error ? err : new Error("Failed to parse PDF buffer"));
+    }
+  });
 }
 
 /**
