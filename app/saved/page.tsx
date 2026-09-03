@@ -112,7 +112,7 @@ export default function SavedPage() {
             {items.map((opp) => (
               <div key={opp._id} className="relative">
                 <OpportunityCard opportunity={opp} />
-                <div className="mt-2 px-2">
+                <div className="mt-1.5 px-5 pb-2">
                   <ApplicationTracker
                     opportunityId={opp._id}
                     currentStatus={tracking.get(opp._id)}

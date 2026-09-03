@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import SaveButton from "@/components/SaveButton";
+import ShareButton from "@/components/ShareButton";
 import ViewTracker from "@/components/ViewTracker";
 import SimilarOpportunities from "@/components/SimilarOpportunities";
 import DetailTracker from "@/components/DetailTracker";
@@ -60,6 +61,42 @@ async function getOpportunity(id: string): Promise<OpportunityDocument | null> {
   if (!res.ok) throw new Error("Failed to load opportunity");
   const data = await res.json();
   return data.item;
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const opp = await getOpportunity(id);
+  if (!opp) return { title: "Opportunity not found" };
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const oppUrl = `${baseUrl}/opportunity/${opp._id}`;
+  const title = `${opp.title}${opp.organization ? ` at ${opp.organization}` : ""}`;
+  const description = opp.description
+    ? opp.description.substring(0, 160).replace(/\s+/g, " ").trim()
+    : `Find ${opp.category?.toLowerCase() || "opportunity"} opportunities on OPPY.`;
+  const imageUrl = opp.imageUrl || `${baseUrl}/api/og-image?url=${encodeURIComponent(opp.sourceUrl || opp.applicationLink || oppUrl)}`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      url: oppUrl,
+      siteName: "OPPY",
+      images: [{ url: imageUrl, width: 1200, height: 630, alt: `${opp.title} cover` }],
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [imageUrl],
+    },
+    alternates: {
+      canonical: oppUrl,
+    },
+  };
 }
 
 export default async function OpportunityDetailsPage({
@@ -148,14 +185,13 @@ export default async function OpportunityDetailsPage({
               </span>
             </div>
           )}
-          <div className="absolute top-4 right-4 z-10">
+          <div className="absolute top-4 right-4 z-10 flex items-center gap-1">
+            <ShareButton
+              title={opp.title}
+              url={`${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/opportunity/${opp._id}`}
+              organization={opp.organization}
+            />
             <SaveButton id={opp._id} />
-          </div>
-          {/* Application tracking — shown below the image on the detail page */}
-          <div className="absolute bottom-4 left-4 right-4 z-10">
-            <div className="rounded-xl px-3 py-2" style={{ background: "rgba(255,255,255,0.92)", backdropFilter: "blur(4px)" }}>
-              <DetailTracker opportunityId={opp._id} />
-            </div>
           </div>
           <DetailImage opp={opp} />
         </div>
@@ -319,6 +355,11 @@ export default async function OpportunityDetailsPage({
         >
           Open source ↗
         </a>
+      </div>
+
+      {/* ── Application Tracking ───────────────────────────────── */}
+      <div className="mt-4">
+        <DetailTracker opportunityId={opp._id} />
       </div>
 
       {/* ── CTA Button ──────────────────────────────────────────── */}

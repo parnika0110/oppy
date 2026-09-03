@@ -110,8 +110,8 @@ function OrgAvatar({ org, category }: { org: string; category: string }) {
   const { emoji, gradient } = CATEGORY_ICONS[category] ?? CATEGORY_ICONS.Event;
   return (
     <div
-      className="h-36 w-full rounded-xl flex flex-col items-center justify-center mb-4 overflow-hidden gap-2"
-      style={{ background: gradient }}
+      className="w-full rounded-xl flex flex-col items-center justify-center mb-3 overflow-hidden gap-2"
+      style={{ aspectRatio: '16/9', background: gradient }}
       aria-hidden="true"
     >
       <span className="select-none" style={{ fontSize: "2.2rem", lineHeight: 1 }}>
@@ -127,7 +127,7 @@ function OrgAvatar({ org, category }: { org: string; category: string }) {
   );
 }
 
-export default function OpportunityCard({ opportunity }: { opportunity: OpportunityDocument }) {
+export default function OpportunityCard({ opportunity, variant }: { opportunity: OpportunityDocument; variant?: "default" | "similar" }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -176,6 +176,95 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
     return "View details →";
   })();
 
+  const isSimilar = variant === "similar";
+  const cardUrl = `/opportunity/${opportunity._id}?from=${encodeURIComponent(pathname + (searchParams.toString() ? `?${searchParams.toString()}` : ""))}`;
+
+  // ── Similar Opportunities compact variant ──────────────────────────────
+  if (isSimilar) {
+    return (
+      <div className="relative surface lift flex flex-col overflow-hidden" style={{ padding: 0 }}>
+        <Link href={cardUrl} className="group flex flex-col" target="_self">
+          {/* Thumbnail — always 16:9 */}
+          {showImage ? (
+            <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16/9', background: 'var(--paper-2)' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={hasPrimaryImage ? opportunity.imageUrl! : ogImage!}
+                alt={opportunity.imageAlt || `${opportunity.title} cover`}
+                loading="lazy"
+                className="w-full h-full object-cover"
+                onLoad={(e) => {
+                  const img = e.currentTarget;
+                  const w = img.naturalWidth;
+                  const h = img.naturalHeight;
+                  if (w > 0 && h > 0) {
+                    const aspectRatio = w / h;
+                    if (w < 100 || h < 60 || aspectRatio > 3 || aspectRatio < 0.3) {
+                      if (hasPrimaryImage) setImgError(true);
+                      else setOgFailed(true);
+                    }
+                  }
+                }}
+                onError={() => {
+                  if (hasPrimaryImage) setImgError(true);
+                  else setOgFailed(true);
+                }}
+              />
+            </div>
+          ) : (
+            <OrgAvatar org={opportunity.organization} category={opportunity.category} />
+          )}
+
+          <div className="p-3.5">
+            {/* Category + source */}
+            <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+              <span
+                className="inline-block text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full"
+                style={{ fontFamily: "'JetBrains Mono', monospace", background: cat.bg, color: cat.color }}
+              >
+                {cat.label}
+              </span>
+              {sourcePlatform && (
+                <span className="text-[0.6rem]" style={{ color: 'var(--ink-soft)' }}>
+                  · {d(sourcePlatform)}
+                </span>
+              )}
+              {(opportunity as any).qualityScore && (opportunity as any).qualityScore >= 80 && (
+                <span className="text-[0.55rem]" style={{ color: '#065F46' }}>✓</span>
+              )}
+            </div>
+
+            {/* Organization */}
+            <p className="text-[0.7rem] font-medium line-clamp-1" style={{ color: 'var(--accent-deep)' }}>
+              {d(opportunity.organization)}
+            </p>
+
+            {/* Title — max 2 lines */}
+            <h3
+              className="mt-0.5 font-display font-semibold leading-snug line-clamp-2 group-hover:text-[var(--accent-deep)] transition-colors"
+              style={{ fontSize: '0.88rem', color: 'var(--ink)' }}
+            >
+              {d(opportunity.title)}
+            </h3>
+
+            {/* Location — max 1 line */}
+            {(opportunity.location || opportunity.isRemote) && (
+              <p className="mt-1 text-[0.7rem] line-clamp-1" style={{ color: 'var(--ink-soft)' }}>
+                {opportunity.isRemote ? '🌐 Remote' : `📍 ${d(opportunity.location)}`}
+              </p>
+            )}
+
+            {/* CTA */}
+            <p className="mt-2 text-[0.7rem] font-medium" style={{ color: 'var(--accent-deep)', fontFamily: "'Space Grotesk', sans-serif" }}>
+              {ctaLabel}
+            </p>
+          </div>
+        </Link>
+      </div>
+    );
+  }
+
+  // ── Default card variant ──────────────────────────────────────────────
   return (
     <div
       className="relative surface lift flex flex-col overflow-hidden"
@@ -191,7 +280,7 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
         <SaveButton id={opportunity._id} />
       </div>
 
-      <Link href={`/opportunity/${opportunity._id}?from=${encodeURIComponent(pathname + (searchParams.toString() ? `?${searchParams.toString()}` : ""))}`} className="group flex flex-col h-full p-5" target="_self">
+      <Link href={cardUrl} className="group flex flex-col flex-1 p-5" target="_self">
         {/* ── Image or avatar ──── */}
         {showImage ? (
           <div className="relative w-full rounded-xl mb-3 overflow-hidden" style={{ aspectRatio: '16/9', background: 'var(--paper-2)' }}>
@@ -203,9 +292,18 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
               className="w-full h-full object-cover"
               onLoad={(e) => {
                 const img = e.currentTarget;
-                if (img.naturalWidth > 0 && img.naturalWidth < 200) {
-                  if (hasPrimaryImage) setImgError(true);
-                  else setOgFailed(true);
+                const w = img.naturalWidth;
+                const h = img.naturalHeight;
+                if (w > 0 && h > 0) {
+                  const aspectRatio = w / h;
+                  // Reject images that are too small or have extreme aspect ratios
+                  // (logo strips, favicons, tiny icons). Normal card images are ~16:9 (1.78).
+                  // Allow 0.3–3.0 to cover portrait, landscape, and square images.
+                  const isUnusable = w < 100 || h < 60 || aspectRatio > 3 || aspectRatio < 0.3;
+                  if (isUnusable) {
+                    if (hasPrimaryImage) setImgError(true);
+                    else setOgFailed(true);
+                  }
                 }
               }}
               onError={() => {
@@ -276,14 +374,14 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
         {/* ── 3. Title — strongest text ──── */}
         <h3
           className="mt-0.5 font-display font-semibold leading-snug line-clamp-2 group-hover:text-[var(--accent-deep)] transition-colors"
-          style={{ fontSize: "1.05rem", color: "var(--ink)" }}
+          style={{ fontSize: "1.05rem", color: "var(--ink)", minHeight: '2.6em' }}
         >
           {d(opportunity.title)}
         </h3>
 
         {/* ── 4. Location / remote ──── */}
         {(opportunity.location || opportunity.isRemote) && (
-          <p className="mt-1.5 text-xs line-clamp-1" style={{ color: "var(--ink-soft)" }}>
+          <p className="mt-1.5 text-xs line-clamp-1" style={{ color: "var(--ink-soft)", minHeight: '1.2em' }}>
             {opportunity.isRemote ? "🌐 Remote" : `📍 ${d(opportunity.location)}`}
           </p>
         )}
@@ -303,17 +401,17 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
               }}
             >
               {hasStipend && (
-                <div>
+                <div style={{ breakInside: 'avoid' }}>
                   <p className="text-[0.6rem] uppercase tracking-wider font-medium" style={{ color: 'var(--ink-soft)', fontFamily: "'JetBrains Mono', monospace" }}>
                     💰 Stipend
                   </p>
-                  <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>
+                  <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--ink)', wordBreak: 'break-word' }}>
                     {d(stipend)}
                   </p>
                 </div>
               )}
               {hasDuration && (
-                <div>
+                <div style={{ breakInside: 'avoid' }}>
                   <p className="text-[0.6rem] uppercase tracking-wider font-medium" style={{ color: 'var(--ink-soft)', fontFamily: "'JetBrains Mono', monospace" }}>
                     ⏱ Duration
                   </p>
@@ -323,7 +421,7 @@ export default function OpportunityCard({ opportunity }: { opportunity: Opportun
                 </div>
               )}
               {hasDeadline && (
-                <div>
+                <div style={{ breakInside: 'avoid' }}>
                   <p className="text-[0.6rem] uppercase tracking-wider font-medium" style={{ color: 'var(--ink-soft)', fontFamily: "'JetBrains Mono', monospace" }}>
                     📅 Deadline
                   </p>

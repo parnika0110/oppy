@@ -37,7 +37,7 @@ export default function SimilarOpportunities({ opportunityId }: { opportunityId:
         >
           Similar opportunities
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-start">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--line)", background: "var(--card)" }}>
               <div className="h-36 skeleton" />
@@ -64,9 +64,9 @@ export default function SimilarOpportunities({ opportunityId }: { opportunityId:
       >
         Similar opportunities
       </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-start">
         {items.map((opp) => (
-          <OpportunityCard key={opp._id} opportunity={opp} />
+          <OpportunityCard key={opp._id} opportunity={opp} variant="similar" />
         ))}
       </div>
     </section>

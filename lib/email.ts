@@ -67,10 +67,10 @@ export async function sendPasswordResetEmail(
       return false;
     }
 
-    console.log(`[Email] Password reset code sent to ${email}`);
+    console.log("[Email] Password reset code sent successfully");
     return true;
   } catch (err) {
-    console.error(`[Email] Failed to send password reset to ${email}:`, err);
+    console.error("[Email] Failed to send password reset email:", err);
     return false;
   }
 }

@@ -39,10 +39,10 @@ export default function ShareButton({
     }
   }
 
-  function shareTwitter() {
-    const text = `${title}${organization ? ` at ${organization}` : ""}`;
+  function shareX() {
+    const text = `${title}${organization ? ` at ${organization}` : ""} 🚀\nFound this on OPPY 👀\n${url}`;
     window.open(
-      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+      `https://x.com/intent/post?text=${encodeURIComponent(text)}`,
       "_blank",
       "noopener,noreferrer"
     );
@@ -92,11 +92,11 @@ export default function ShareButton({
             {copied ? "✓ Copied!" : "🔗 Copy link"}
           </button>
           <button
-            onClick={shareTwitter}
+            onClick={shareX}
             className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-black/5 transition-colors flex items-center gap-2"
             style={{ color: "var(--ink)" }}
           >
-            𝕏 Share on Twitter
+            𝕏 Share on X
           </button>
           <button
             onClick={shareLinkedIn}
