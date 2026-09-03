@@ -70,13 +70,26 @@ export default function SearchableMultiSelect({
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setHighlightIdx((i) => Math.min(i + 1, displayItems.length - 1));
+      setOpen(true);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlightIdx((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (highlightIdx >= 0 && highlightIdx < displayItems.length) {
-        select(displayItems[highlightIdx]);
+      if (showDropdown) {
+        e.preventDefault();
+        e.stopPropagation();
+        const idx = highlightIdx >= 0 && highlightIdx < displayItems.length
+          ? highlightIdx
+          : displayItems.length > 0 ? 0 : -1;
+        if (idx >= 0) {
+          select(displayItems[idx]);
+        }
+      }
+    } else if (e.key === "Escape") {
+      if (showDropdown) {
+        e.preventDefault();
+        setOpen(false);
+        setHighlightIdx(-1);
       }
     } else if (e.key === "Backspace" && !query && selected.length > 0) {
       remove(selected[selected.length - 1]);
@@ -94,10 +107,14 @@ export default function SearchableMultiSelect({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Reset highlight when items change
+  // Auto-highlight first suggestion when filtered results change
   useEffect(() => {
-    setHighlightIdx(-1);
-  }, [query]);
+    if (displayItems.length > 0 && open) {
+      setHighlightIdx(0);
+    } else {
+      setHighlightIdx(-1);
+    }
+  }, [query, displayItems.length, open]);
 
   const showDropdown = open && (displayItems.length > 0 || query.trim());
 
@@ -283,9 +300,13 @@ export default function SearchableMultiSelect({
           border-radius: 8px;
           transition: background 0.1s;
         }
-        .sms-option:hover,
+        .sms-option:hover {
+          background: var(--accent-soft, #f0ecf9);
+        }
         .sms-option-active {
           background: var(--accent-soft, #f0ecf9);
+          outline: 2px solid var(--accent, #8b7dc7);
+          outline-offset: -2px;
         }
         .sms-option-label {
           font-weight: 500;

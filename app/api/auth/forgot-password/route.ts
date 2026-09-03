@@ -35,28 +35,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate code — returns null for non-existent users (no code, no email)
-    const code = await generateResetCode(email);
+    const result = await generateResetCode(email);
 
     // Diagnostic: track which branch we take (no secrets logged)
-    console.log("[Forgot Password] generateResetCode returned:", code ? "code (user exists)" : "null (user not found)");
+    console.log("[Forgot Password] generateResetCode returned:", result ? "code (user exists)" : "null (user not found)");
 
-    if (code) {
+    if (result) {
       // User exists and code was generated — send it via email
-      console.log("[Forgot Password] Calling sendPasswordResetEmail for", email.trim());
-      const emailSent = await sendPasswordResetEmail(email.trim(), code);
-      console.log("[Forgot Password] sendPasswordResetEmail returned:", emailSent);
+      const emailSent = await sendPasswordResetEmail(email.trim(), result.code);
       if (!emailSent) {
-        console.error(`[Forgot Password] Email delivery failed for ${email.trim()}`);
+        console.error("[Forgot Password] Email delivery failed (user exists, code generated)");
       }
-    } else {
-      console.log("[Forgot Password] No code generated — user not found, returning generic response");
     }
-    // If code is null, user doesn't exist — no email sent.
-    // But we still return the same response to prevent enumeration.
+    // If result is null, user doesn't exist — no email sent.
+    // But we still return the same message to prevent enumeration.
 
-    // Always return the same response to prevent email enumeration
+    // Return expiresIn only when a code was actually generated.
+    // For non-existent users, expiresIn is omitted — but the message is identical,
+    // so the client cannot distinguish between the two cases.
     return NextResponse.json({
       message: "If an account exists with that email, a reset code has been sent.",
+      ...(result ? { expiresIn: result.expiresIn } : {}),
     });
   } catch (err) {
     console.error("[Forgot Password] Error:", err);

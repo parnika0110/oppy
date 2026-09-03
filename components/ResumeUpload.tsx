@@ -1,11 +1,6 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import SearchableMultiSelect from "@/components/SearchableMultiSelect";
-import {
-  SKILL_TAXONOMY,
-  INTEREST_TAXONOMY_ENTRIES,
-} from "@/lib/taxonomies";
 
 interface ExtractedProfile {
   extractedSkills: string[];
@@ -37,7 +32,6 @@ export default function ResumeUpload({ onConfirm, onSkip }: ResumeUploadProps) {
   const [phase, setPhase] = useState<Phase>("upload");
   const [error, setError] = useState<string>("");
   const [extracted, setExtracted] = useState<ExtractedProfile | null>(null);
-  // Start EMPTY — user explicitly adds what they want as current preferences
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [dragOver, setDragOver] = useState(false);
@@ -54,6 +48,7 @@ export default function ResumeUpload({ onConfirm, onSkip }: ResumeUploadProps) {
       const res = await fetch("/api/resume/upload", {
         method: "POST",
         body: formData,
+        credentials: "include",
       });
 
       const data = await res.json();
@@ -152,7 +147,7 @@ export default function ResumeUpload({ onConfirm, onSkip }: ResumeUploadProps) {
           onClick={onSkip}
           className="w-full py-3 text-sm text-stone-500 hover:text-stone-700 transition-colors"
         >
-          Skip — I&apos;ll fill it in manually →
+          Skip — I'll fill it in manually →
         </button>
       </div>
     );
@@ -175,15 +170,51 @@ export default function ResumeUpload({ onConfirm, onSkip }: ResumeUploadProps) {
   const hasExtractedSkills = (extracted?.extractedSkills.length ?? 0) > 0;
   const hasExtractedInterests = (extracted?.extractedInterests.length ?? 0) > 0;
 
+  const unaddedSkills = (extracted?.extractedSkills ?? []).filter(
+    (s) => !selectedSkills.includes(s)
+  );
+  const unaddedInterests = (extracted?.extractedInterests ?? []).filter(
+    (i) => !selectedInterests.includes(i)
+  );
+  const allSkillsSelected = hasExtractedSkills && unaddedSkills.length === 0;
+  const allInterestsSelected = hasExtractedInterests && unaddedInterests.length === 0;
+  const totalSelected = selectedSkills.length + selectedInterests.length;
+
+  /** Toggle: if all are selected → remove all; otherwise → add all remaining */
+  function toggleAllSkills() {
+    if (!extracted || !hasExtractedSkills) return;
+    if (allSkillsSelected) {
+      // Remove only the resume-extracted skills from explicit preferences.
+      // Do NOT touch extracted data.
+      setSelectedSkills((prev) =>
+        prev.filter((s) => !extracted.extractedSkills.includes(s))
+      );
+    } else {
+      setSelectedSkills([...new Set([...selectedSkills, ...extracted.extractedSkills])]);
+    }
+  }
+
+  /** Toggle: if all are selected → remove all; otherwise → add all remaining */
+  function toggleAllInterests() {
+    if (!extracted || !hasExtractedInterests) return;
+    if (allInterestsSelected) {
+      setSelectedInterests((prev) =>
+        prev.filter((i) => !extracted.extractedInterests.includes(i))
+      );
+    } else {
+      setSelectedInterests([...new Set([...selectedInterests, ...extracted.extractedInterests])]);
+    }
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="rounded-2xl bg-oppy-purple/5 border border-oppy-purple/20 p-5">
         <h3 className="font-display text-lg font-bold text-stone-900 mb-1">
           We found your profile ✨
         </h3>
         <p className="text-sm text-stone-600">
-          We detected skills and interests from your resume. Click to add the ones
-          you want OPPY to use for matching. Your full resume profile is saved separately.
+          Review what we found. Skills and interests below are from your resume. Click to add
+          the ones you want as your current preferences, or add them all.
         </p>
       </div>
 
@@ -217,13 +248,27 @@ export default function ResumeUpload({ onConfirm, onSkip }: ResumeUploadProps) {
         </div>
       )}
 
-      {/* Suggested Skills — click to add as current preference */}
+      {/* Skills Found */}
       {hasExtractedSkills && (
         <div>
-          <label className="block text-sm font-semibold text-stone-800 mb-2">
-            Detected skills — click to add as your current preferences
-          </label>
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-semibold text-stone-800">
+              Skills found
+            </label>
+            <button
+              type="button"
+              onClick={toggleAllSkills}
+              className="text-xs font-medium px-2.5 py-1 rounded-lg transition-colors hover:opacity-80"
+              style={{
+                background: allSkillsSelected ? "var(--accent, #f0ecf9)" : "var(--paper, #faf8f4)",
+                border: `1px solid ${allSkillsSelected ? "var(--accent-deep, #5b4a9f)" : "var(--line, #e0dcd4)"}`,
+                color: allSkillsSelected ? "var(--accent-deep, #5b4a9f)" : "var(--ink-soft, #8a8278)",
+              }}
+            >
+              {allSkillsSelected ? "Remove all" : `Add all (${unaddedSkills.length})`}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
             {extracted!.extractedSkills.map((skill) => {
               const isSelected = selectedSkills.includes(skill);
               return (
@@ -237,7 +282,7 @@ export default function ResumeUpload({ onConfirm, onSkip }: ResumeUploadProps) {
                       : "bg-stone-100 text-stone-600 hover:bg-stone-200 border border-stone-200"
                   }`}
                 >
-                  {isSelected && "✓ "}{skill}
+                  {isSelected && "\u2713 "}{skill}
                 </button>
               );
             })}
@@ -245,27 +290,27 @@ export default function ResumeUpload({ onConfirm, onSkip }: ResumeUploadProps) {
         </div>
       )}
 
-      {/* Additional Skills — search and add manually */}
-      <div>
-        <label className="block text-sm font-semibold text-stone-800 mb-2">
-          {hasExtractedSkills ? "Add more skills" : "Skills"}
-        </label>
-        <SearchableMultiSelect
-          entries={SKILL_TAXONOMY}
-          selected={selectedSkills}
-          onChange={setSelectedSkills}
-          placeholder="Search skills…"
-          maxSelections={15}
-        />
-      </div>
-
-      {/* Suggested Interests — click to add as current preference */}
+      {/* Interests Found */}
       {hasExtractedInterests && (
         <div>
-          <label className="block text-sm font-semibold text-stone-800 mb-2">
-            Detected interests — click to add as your current preferences
-          </label>
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-semibold text-stone-800">
+              Interests found
+            </label>
+            <button
+              type="button"
+              onClick={toggleAllInterests}
+              className="text-xs font-medium px-2.5 py-1 rounded-lg transition-colors hover:opacity-80"
+              style={{
+                background: allInterestsSelected ? "var(--accent, #f0ecf9)" : "var(--paper, #faf8f4)",
+                border: `1px solid ${allInterestsSelected ? "var(--accent-deep, #5b4a9f)" : "var(--line, #e0dcd4)"}`,
+                color: allInterestsSelected ? "var(--accent-deep, #5b4a9f)" : "var(--ink-soft, #8a8278)",
+              }}
+            >
+              {allInterestsSelected ? "Remove all" : `Add all (${unaddedInterests.length})`}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
             {extracted!.extractedInterests.map((interest) => {
               const isSelected = selectedInterests.includes(interest);
               return (
@@ -279,27 +324,13 @@ export default function ResumeUpload({ onConfirm, onSkip }: ResumeUploadProps) {
                       : "bg-stone-100 text-stone-600 hover:bg-stone-200 border border-stone-200"
                   }`}
                 >
-                  {isSelected && "✓ "}{interest}
+                  {isSelected && "\u2713 "}{interest}
                 </button>
               );
             })}
           </div>
         </div>
       )}
-
-      {/* Additional Interests — search and add manually */}
-      <div>
-        <label className="block text-sm font-semibold text-stone-800 mb-2">
-          {hasExtractedInterests ? "Add more interests" : "Interests"}
-        </label>
-        <SearchableMultiSelect
-          entries={INTEREST_TAXONOMY_ENTRIES}
-          selected={selectedInterests}
-          onChange={setSelectedInterests}
-          placeholder="Search interests…"
-          maxSelections={10}
-        />
-      </div>
 
       {/* Actions */}
       <div className="flex gap-3 pt-2">
@@ -308,9 +339,9 @@ export default function ResumeUpload({ onConfirm, onSkip }: ResumeUploadProps) {
           className="flex-1 py-3 px-6 rounded-xl bg-oppy-purple text-white font-semibold
                      hover:bg-oppy-purple/90 transition-colors"
         >
-          {selectedSkills.length > 0 || selectedInterests.length > 0
-            ? `Continue with ${selectedSkills.length + selectedInterests.length} selected →`
-            : "Skip — don&apos;t add any to preferences →"
+          {totalSelected > 0
+            ? `Continue with ${totalSelected} selected \u2192`
+            : "Continue without adding \u2192"
           }
         </button>
         <button

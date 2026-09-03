@@ -6,6 +6,7 @@ import OpportunityCard from "@/components/OpportunityCard";
 import ExplanationBadge from "@/components/ExplanationBadge";
 import OppyEmptyState from "@/components/OppyEmptyState";
 import ThemedOppyOrb from "@/components/ThemedOppyOrb";
+import TrackingDashboard from "@/components/TrackingDashboard";
 import { OpportunityDocument } from "@/types/opportunity";
 import { rankOpportunities, getMatchLabels, type DiscoveryPreferences } from "@/lib/relevance";
 
@@ -333,6 +334,8 @@ export default async function DashboardPage() {
         emptyMessage="No upcoming events found."
         emptyAction={{ label: "Explore events →", href: "/?category=Event" }}
       />
+
+      <TrackingDashboard />
 
       <Section
         title="Saved opportunities"

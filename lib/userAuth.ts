@@ -181,7 +181,12 @@ export interface PasswordResetDocument {
  * Generate a 6-digit numeric reset code and store it in the DB.
  * Returns the code (to be sent to the user via email in production).
  */
-export async function generateResetCode(email: string): Promise<string | null> {
+export interface ResetCodeResult {
+  code: string;
+  expiresIn: number; // seconds until expiry
+}
+
+export async function generateResetCode(email: string): Promise<ResetCodeResult | null> {
   const users = await getUsersCollection();
   const user = await users.findOne({ email: email.trim().toLowerCase() });
 
@@ -208,7 +213,7 @@ export async function generateResetCode(email: string): Promise<string | null> {
     used: false,
   });
 
-  return code;
+  return { code, expiresIn: Math.floor(RESET_CODE_TTL_MS / 1000) };
 }
 
 /**

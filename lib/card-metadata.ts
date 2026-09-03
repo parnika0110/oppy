@@ -12,10 +12,12 @@ export function extractStipend(desc: string | null | undefined): string | null {
   if (!desc) return null;
   // Prefer explicit "Stipend: ₹X" pattern
   const m = desc.match(/stipend:\s*([^\.]+)/i);
-  if (m) return m[1].trim();
+  if (m) return m[1].trim().replace(/\s+\/month/i, '\u00a0/month');
   // Fall back to inline ₹ amount pattern
   const m2 = desc.match(/(₹[\s]*[\d,\.\\-–]+[^\.]*\/month)/i);
-  return m2 ? m2[1].trim() : null;
+  if (!m2) return null;
+  // Keep /month visually attached to the amount (non-breaking space before unit)
+  return m2[1].trim().replace(/\s+\/month/i, '\u00a0/month');
 }
 
 /** Extract duration from description text. */

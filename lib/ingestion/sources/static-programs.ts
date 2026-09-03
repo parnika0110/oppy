@@ -124,7 +124,7 @@ const REAL_PROGRAMS: ProgramEntry[] = [
     category: "Internship",
     location: "Menlo Park, CA / Remote",
     description: "Meta University is a paid summer internship program for first and second year underrepresented college students interested in engineering and product design. The program includes technical training, mentorship, and real project work.",
-    applicationLink: "https://www.metacareers.com/careerprograms/pathways/metauniversity",
+    applicationLink: "https://www.metacareers.com/careerprograms/students/",
     sourcePlatform: "Other",
     tags: ["internship", "meta", "diversity", "software-engineering"],
     deadlineDaysOut: 100,

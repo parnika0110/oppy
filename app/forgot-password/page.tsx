@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 function ForgotPasswordForm() {
@@ -12,12 +12,42 @@ function ForgotPasswordForm() {
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [resendCooldown, setResendCooldown] = useState(0);
 
-  // Resend cooldown timer
+  // ── Expiry countdown state ──────────────────────────────────────
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
+
+  // Live countdown — ticks every second while on Step 2
+  useEffect(() => {
+    if (step !== "reset" || expiresAt === null) {
+      setRemaining(null);
+      return;
+    }
+    function tick() {
+      const secs = Math.max(0, Math.ceil((expiresAt! - Date.now()) / 1000));
+      setRemaining(secs);
+    }
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [step, expiresAt]);
+
+  // Format remaining seconds as MM:SS
+  function formatCountdown(secs: number): string {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
+  const codeExpired = remaining !== null && remaining <= 0;
+
+  // ── Resend code ────────────────────────────────────────────────
+  const [resendCooldown, setResendCooldown] = useState(0);
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
@@ -34,11 +64,18 @@ function ForgotPasswordForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
       });
+      const data = await res.json();
       if (res.ok) {
+        // Restart countdown with fresh expiry
+        if (data.expiresIn) {
+          setExpiresAt(Date.now() + data.expiresIn * 1000);
+        } else {
+          // Fallback: 15 minutes from now (server didn't return expiresIn)
+          setExpiresAt(Date.now() + 15 * 60 * 1000);
+        }
         setResendCooldown(30);
         setError(null);
       } else {
-        const data = await res.json();
         setError(data.error || "Failed to resend code.");
       }
     } catch {
@@ -70,6 +107,13 @@ function ForgotPasswordForm() {
       if (res.ok) {
         setStep("reset");
         setError(null);
+        // Start countdown from server-provided expiry
+        if (data.expiresIn) {
+          setExpiresAt(Date.now() + data.expiresIn * 1000);
+        } else {
+          // Fallback: 15 minutes from now
+          setExpiresAt(Date.now() + 15 * 60 * 1000);
+        }
       } else {
         setError(data.error || "Failed to send reset code.");
       }
@@ -110,6 +154,28 @@ function ForgotPasswordForm() {
       setLoading(false);
     }
   }
+
+  // ── Shared eye button styles ────────────────────────────────────
+  const eyeBtnStyle: React.CSSProperties = {
+    position: "absolute",
+    right: 10,
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    padding: "2px 4px",
+    color: "var(--ink-soft)",
+    fontSize: "1rem",
+    lineHeight: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+
+  const passwordInputWrapStyle: React.CSSProperties = {
+    position: "relative",
+  };
 
   // ── Success state ─────────────────────────────────────────────────
   if (success) {
@@ -159,7 +225,7 @@ function ForgotPasswordForm() {
     );
   }
 
-  // ── Step 1: Request code ──────────────────────────────────────────
+  // ── Step 1: Request code ──────────────────────────────────────
   if (step === "email") {
     return (
       <div style={{ minHeight: "70vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -284,6 +350,7 @@ function ForgotPasswordForm() {
             background: "var(--card)",
           }}
         >
+          {/* ── Reset code ──── */}
           <div>
             <label className="eyebrow" style={{ display: "block", marginBottom: 6 }}>
               Reset code
@@ -308,24 +375,48 @@ function ForgotPasswordForm() {
             />
           </div>
 
+          {/* ── Countdown timer ──── */}
+          {remaining !== null && (
+            <div style={{ textAlign: "center", fontSize: "0.8rem", color: codeExpired ? "#991B1B" : "var(--ink-soft)" }}>
+              {codeExpired ? (
+                <span style={{ fontWeight: 600 }}>Code expired</span>
+              ) : (
+                <span>Code expires in <strong style={{ fontFamily: "'JetBrains Mono', monospace", color: remaining <= 120 ? "#991B1B" : "var(--ink)" }}>{formatCountdown(remaining)}</strong></span>
+              )}
+            </div>
+          )}
+
+          {/* ── New password ──── */}
           <div>
             <label className="eyebrow" style={{ display: "block", marginBottom: 6 }}>
               New password
             </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
-              className="w-full px-4 py-2.5 rounded-xl text-sm"
-              style={{
-                border: `1px solid ${password && !passwordValid ? "#FECACA" : "var(--line)"}`,
-                background: "var(--paper)",
-                color: "var(--ink)",
-              }}
-              autoComplete="new-password"
-            />
+            <div style={passwordInputWrapStyle}>
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                className="w-full px-4 py-2.5 rounded-xl text-sm"
+                style={{
+                  border: `1px solid ${password && !passwordValid ? "#FECACA" : "var(--line)"}`,
+                  background: "var(--paper)",
+                  color: "var(--ink)",
+                  paddingRight: 40,
+                }}
+                autoComplete="new-password"
+              />
+              <button
+                type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                onClick={() => setShowPassword(!showPassword)}
+                style={eyeBtnStyle}
+                tabIndex={-1}
+              >
+                {showPassword ? "🙈" : "👁"}
+              </button>
+            </div>
             {password && !passwordValid && (
               <p style={{ marginTop: 4, fontSize: "0.75rem", color: "#991B1B" }}>
                 Password must be at least 8 characters.
@@ -333,24 +424,37 @@ function ForgotPasswordForm() {
             )}
           </div>
 
+          {/* ── Confirm password ──── */}
           <div>
             <label className="eyebrow" style={{ display: "block", marginBottom: 6 }}>
               Confirm password
             </label>
-            <input
-              type="password"
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Repeat your new password"
-              className="w-full px-4 py-2.5 rounded-xl text-sm"
-              style={{
-                border: `1px solid ${confirmPassword && !passwordsMatch ? "#FECACA" : "var(--line)"}`,
-                background: "var(--paper)",
-                color: "var(--ink)",
-              }}
-              autoComplete="new-password"
-            />
+            <div style={passwordInputWrapStyle}>
+              <input
+                type={showConfirm ? "text" : "password"}
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repeat your new password"
+                className="w-full px-4 py-2.5 rounded-xl text-sm"
+                style={{
+                  border: `1px solid ${confirmPassword && !passwordsMatch ? "#FECACA" : "var(--line)"}`,
+                  background: "var(--paper)",
+                  color: "var(--ink)",
+                  paddingRight: 40,
+                }}
+                autoComplete="new-password"
+              />
+              <button
+                type="button"
+                aria-label={showConfirm ? "Hide password" : "Show password"}
+                onClick={() => setShowConfirm(!showConfirm)}
+                style={eyeBtnStyle}
+                tabIndex={-1}
+              >
+                {showConfirm ? "🙈" : "👁"}
+              </button>
+            </div>
             {confirmPassword && !passwordsMatch && (
               <p style={{ marginTop: 4, fontSize: "0.75rem", color: "#991B1B" }}>
                 Passwords do not match.
@@ -415,7 +519,7 @@ function ForgotPasswordForm() {
             </button>
             <button
               type="button"
-              onClick={() => { setStep("email"); setError(null); }}
+              onClick={() => { setStep("email"); setError(null); setExpiresAt(null); setRemaining(null); }}
               style={{
                 background: "none",
                 border: "none",

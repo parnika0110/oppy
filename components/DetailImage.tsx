@@ -46,7 +46,7 @@ export function DetailImage({ opp }: { opp: OpportunityDocument }) {
   const showImage = hasPrimaryImage || hasOgImage;
 
   return (
-    <div className="relative w-full flex items-end p-6" style={{ background: gradient, aspectRatio: '16/7' }}>
+    <div className="relative w-full flex items-end p-6" style={{ background: gradient, aspectRatio: showImage ? '16/7' : '16/4' }}>
       {showImage ? (
         <div className="absolute inset-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -62,11 +62,21 @@ export function DetailImage({ opp }: { opp: OpportunityDocument }) {
           />
         </div>
       ) : (
-        <div
-          className="w-16 h-16 rounded-2xl flex items-center justify-center font-display font-bold text-3xl shadow-sm"
-          style={{ background: "rgba(255,255,255,0.85)", color: "var(--ink)" }}
-        >
-          {opp.organization.charAt(0).toUpperCase()}
+        <div className="flex items-center gap-3">
+          <div
+            className="w-12 h-12 rounded-xl flex items-center justify-center font-display font-bold text-2xl shadow-sm"
+            style={{ background: "rgba(255,255,255,0.85)", color: "var(--ink)" }}
+          >
+            {opp.organization.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.9)' }}>
+              {opp.organization}
+            </p>
+            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>
+              {opp.category}
+            </p>
+          </div>
         </div>
       )}
     </div>

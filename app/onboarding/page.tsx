@@ -340,12 +340,11 @@ export default function OnboardingPage() {
     const idx = JOURNEY_STEPS.indexOf(step);
     if (idx < JOURNEY_STEPS.length - 1) {
       let nextIdx = idx + 1;
-      // When coming from resume path, skip interests and skills steps
-      // since the user already chose those in the ResumeUpload confirmation.
+      // Resume path: skip interests and skills at every step since
+      // the user already handled those in the ResumeUpload confirmation.
       // Do NOT skip categories — a resume cannot determine what types of
       // opportunities the user is looking for.
-      if (profileMethod === "resume" && step === "method") {
-        // Skip interests and skills → go to categories
+      if (profileMethod === "resume") {
         while (
           nextIdx < JOURNEY_STEPS.length &&
           ["interests", "skills"].includes(JOURNEY_STEPS[nextIdx])

@@ -32,7 +32,7 @@ function ResumeSection({ user, refreshUser }: { user: any; refreshUser: () => Pr
     try {
       const formData = new FormData();
       formData.append("resume", file);
-      const res = await fetch("/api/resume/upload", { method: "POST", body: formData });
+      const res = await fetch("/api/resume/upload", { method: "POST", body: formData, credentials: "include" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
       await refreshUser();
@@ -46,7 +46,7 @@ function ResumeSection({ user, refreshUser }: { user: any; refreshUser: () => Pr
   async function handleRemove() {
     setRemoving(true);
     try {
-      const res = await fetch("/api/resume/remove", { method: "DELETE" });
+      const res = await fetch("/api/resume/remove", { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error("Failed to remove");
       await refreshUser();
       setConfirmRemove(false);
@@ -163,7 +163,7 @@ function UploadCTA({ user, refreshUser }: { user: any; refreshUser: () => Promis
     try {
       const formData = new FormData();
       formData.append("resume", file);
-      const res = await fetch("/api/resume/upload", { method: "POST", body: formData });
+      const res = await fetch("/api/resume/upload", { method: "POST", body: formData, credentials: "include" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
       setSuccess(true);
@@ -449,6 +449,7 @@ function DeleteAccountSection({ user, router }: { user: any; router: any }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirm: "DELETE" }),
+        credentials: "include",
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Deletion failed");
