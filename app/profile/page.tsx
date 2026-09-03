@@ -220,24 +220,47 @@ function ResumeInsightsPanel({
 }) {
   const [addingSkill, setAddingSkill] = useState<string | null>(null);
   const [addingInterest, setAddingInterest] = useState<string | null>(null);
+  const [bulkAddingSkills, setBulkAddingSkills] = useState(false);
+  const [bulkAddingInterests, setBulkAddingInterests] = useState(false);
 
   const currentSkills: string[] = user?.preferences?.skills || [];
   const currentInterests: string[] = user?.preferences?.interests || [];
   const resumeSkills: string[] = profile?.extractedSkills || [];
   const resumeInterests: string[] = profile?.extractedInterests || [];
 
+  const unaddedSkills = resumeSkills.filter((s) => !currentSkills.includes(s));
+  const unaddedInterests = resumeInterests.filter((i) => !currentInterests.includes(i));
+  const allSkillsAdded = unaddedSkills.length === 0;
+  const allInterestsAdded = unaddedInterests.length === 0;
+
   async function addSkillToPreferences(skill: string) {
     if (currentSkills.includes(skill)) return;
     setAddingSkill(skill);
     try {
-      await fetch("/api/profile", {
+      const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ skills: [...currentSkills, skill] }),
       });
-      await refreshUser();
+      if (res.ok) await refreshUser();
     } finally {
       setAddingSkill(null);
+    }
+  }
+
+  async function addAllSkills() {
+    if (allSkillsAdded || bulkAddingSkills) return;
+    setBulkAddingSkills(true);
+    try {
+      const merged = [...new Set([...currentSkills, ...unaddedSkills])];
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skills: merged }),
+      });
+      if (res.ok) await refreshUser();
+    } finally {
+      setBulkAddingSkills(false);
     }
   }
 
@@ -245,14 +268,30 @@ function ResumeInsightsPanel({
     if (currentInterests.includes(interest)) return;
     setAddingInterest(interest);
     try {
-      await fetch("/api/profile", {
+      const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ interests: [...currentInterests, interest] }),
       });
-      await refreshUser();
+      if (res.ok) await refreshUser();
     } finally {
       setAddingInterest(null);
+    }
+  }
+
+  async function addAllInterests() {
+    if (allInterestsAdded || bulkAddingInterests) return;
+    setBulkAddingInterests(true);
+    try {
+      const merged = [...new Set([...currentInterests, ...unaddedInterests])];
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ interests: merged }),
+      });
+      if (res.ok) await refreshUser();
+    } finally {
+      setBulkAddingInterests(false);
     }
   }
 
@@ -265,16 +304,32 @@ function ResumeInsightsPanel({
       {/* Resume Skills */}
       {resumeSkills.length > 0 && (
         <div className="mb-4">
-          <p className="text-[0.68rem] font-semibold uppercase tracking-wider text-stone-500 mb-2" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-            Skills found
-          </p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-wider text-stone-500" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              Skills found in your resume
+            </p>
+            <button
+              type="button"
+              onClick={addAllSkills}
+              disabled={allSkillsAdded || bulkAddingSkills}
+              className="text-[0.68rem] font-medium px-2.5 py-1 rounded-lg transition-colors cursor-pointer disabled:cursor-default"
+              style={{
+                background: allSkillsAdded ? "var(--accent)" : "var(--paper)",
+                border: `1px solid ${allSkillsAdded ? "var(--accent-deep)" : "var(--line)"}`,
+                color: allSkillsAdded ? "var(--accent-deep)" : "var(--ink-soft)",
+                opacity: allSkillsAdded ? 0.7 : 1,
+              }}
+            >
+              {bulkAddingSkills ? "Adding…" : allSkillsAdded ? "All added ✓" : `Add all (${unaddedSkills.length})`}
+            </button>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {resumeSkills.map((skill) => {
               const alreadyAdded = currentSkills.includes(skill);
               return (
                 <span
                   key={skill}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border transition-colors"
                   style={{
                     background: alreadyAdded ? "var(--accent)" : "var(--paper)",
                     borderColor: alreadyAdded ? "var(--accent-deep)" : "var(--line)",
@@ -305,16 +360,32 @@ function ResumeInsightsPanel({
       {/* Resume Interests */}
       {resumeInterests.length > 0 && (
         <div className="mb-3">
-          <p className="text-[0.68rem] font-semibold uppercase tracking-wider text-stone-500 mb-2" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-            Interests found
-          </p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-wider text-stone-500" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              Interests found in your resume
+            </p>
+            <button
+              type="button"
+              onClick={addAllInterests}
+              disabled={allInterestsAdded || bulkAddingInterests}
+              className="text-[0.68rem] font-medium px-2.5 py-1 rounded-lg transition-colors cursor-pointer disabled:cursor-default"
+              style={{
+                background: allInterestsAdded ? "var(--accent)" : "var(--paper)",
+                border: `1px solid ${allInterestsAdded ? "var(--accent-deep)" : "var(--line)"}`,
+                color: allInterestsAdded ? "var(--accent-deep)" : "var(--ink-soft)",
+                opacity: allInterestsAdded ? 0.7 : 1,
+              }}
+            >
+              {bulkAddingInterests ? "Adding…" : allInterestsAdded ? "All added ✓" : `Add all (${unaddedInterests.length})`}
+            </button>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {resumeInterests.map((interest) => {
               const alreadyAdded = currentInterests.includes(interest);
               return (
                 <span
                   key={interest}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border transition-colors"
                   style={{
                     background: alreadyAdded ? "var(--accent)" : "var(--paper)",
                     borderColor: alreadyAdded ? "var(--accent-deep)" : "var(--line)",
@@ -467,21 +538,17 @@ export default function ProfilePage() {
   }, [authLoading, user, router]);
 
   useEffect(() => {
-    if (user && !loadedPrefs) {
+    if (user) {
       setName(user.name);
-      fetch("/api/auth/me")
-        .then((r) => r.json())
-        .then((data) => {
-          const prefs = data.user?.preferences || {};
-          setSkills(prefs.skills || []);
-          setInterests(prefs.interests || []);
-          setLocations(prefs.locations || []);
-          setExperience(prefs.experience || "");
-          setRemote(typeof prefs.remote === "boolean" ? prefs.remote : null);
-          setLoadedPrefs(true);
-        });
+      const prefs = user.preferences || {};
+      setSkills(prefs.skills || []);
+      setInterests(prefs.interests || []);
+      setLocations(prefs.locations || []);
+      setExperience(prefs.experience || "");
+      setRemote(typeof prefs.remote === "boolean" ? prefs.remote : null);
+      setLoadedPrefs(true);
     }
-  }, [user, loadedPrefs]);
+  }, [user?.id, user?.preferences?.skills, user?.preferences?.interests, user?.preferences?.locations, user?.preferences?.experience, user?.preferences?.remote]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
