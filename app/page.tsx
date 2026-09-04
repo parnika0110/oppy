@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import DiscoveryFilters from "@/components/DiscoveryFilters";
 import OpportunityCard from "@/components/OpportunityCard";
 import OppyEmptyState from "@/components/OppyEmptyState";
@@ -7,6 +8,7 @@ import { OpportunityDocument } from "@/types/opportunity";
 import { publicOpportunityFilter, opportunitySort, buildCandidateFilter } from "@/lib/opportunities";
 import { getOpportunitiesCollection } from "@/lib/mongodb";
 import { rankOpportunities, getMatchSummary, type DiscoveryPreferences } from "@/lib/relevance";
+import { parseSearchQuery, hasSearchSignals } from "@/lib/search-intent";
 
 /** Parse URL params into DiscoveryPreferences. */
 function parsePreferences(params: Record<string, string | undefined>): DiscoveryPreferences {
@@ -185,6 +187,49 @@ export default async function HomePage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const params = await searchParams;
+
+  // ── Natural-language interpretation for plain quick searches ─────────
+  // Only when the URL is a bare keyword search (no structured filters):
+  // parse phrases like "AI Internships in Bengaluru" into the same
+  // structured params the filter UI / AI wizard produce, so the chips,
+  // ranking and exact-vs-related semantics match what the user typed.
+  const hasStructuredFilters = !!(params.categories || params.category || params.interests || params.location || params.remote || params.experience || params.tag);
+  if (params.q && !hasStructuredFilters) {
+    const intent = parseSearchQuery(params.q);
+    if (hasSearchSignals(intent)) {
+      const out = new URLSearchParams();
+      let changed = false;
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== null) out.set(key, value);
+      }
+      const setIfAbsent = (key: string, value?: string) => {
+        if (value && !out.has(key)) {
+          out.set(key, value);
+          changed = true;
+        }
+      };
+      setIfAbsent("categories", intent.categories?.length ? intent.categories.join(",") : undefined);
+      setIfAbsent("interests", intent.interests?.length ? intent.interests.join(",") : undefined);
+      setIfAbsent("location", intent.location);
+      if (intent.remote) setIfAbsent("remote", "true");
+      setIfAbsent("experience", intent.experience);
+      const keywords = intent.keywords.join(" ");
+      if (keywords) {
+        if (out.get("q") !== keywords) {
+          out.set("q", keywords);
+          changed = true;
+        }
+      } else if (out.has("q")) {
+        out.delete("q");
+        changed = true;
+      }
+      if (changed) {
+        out.delete("page");
+        redirect(`/?${out.toString()}`);
+      }
+    }
+  }
+
   const hasPreferenceParams = !!(params.categories || params.interests || params.experience);
   const hasTraditionalFilters = !!(params.q || params.category || params.location || params.tag || (params.remote && !hasPreferenceParams) || params.showClosed || params.sort);
   const hasFilters = hasPreferenceParams || hasTraditionalFilters;

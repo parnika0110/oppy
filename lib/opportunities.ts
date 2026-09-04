@@ -30,6 +30,40 @@ function locationMatcher(location: string) {
   return { $regex: `^(${values.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(,|$)`, $options: "i" };
 }
 
+/**
+ * Text search clause for a query string.
+ *
+ * Single term: matches the term (substring) in title/organization/description/tags
+ * (identical to the historical literal search). Multiple terms: ALL terms must
+ * appear somewhere in those fields (AND semantics) instead of requiring the whole
+ * phrase verbatim, so natural multi-word queries like "AI jobs in Mumbai" no
+ * longer silently return zero.
+ */
+export function textSearchClause(q: string): Filter<Document> {
+  // Split on whitespace and strip leading/trailing punctuation from each term
+  // (keeps internal characters like c++, c#, node.js intact) so searches typed
+  // with punctuation — "python,", "(AI)", "machine learning?" — match the bare
+  // word instead of a literal phrase that includes the punctuation.
+  const terms = q
+    .split(/\s+/)
+    .map((t) => t.replace(/^[^\p{L}\p{N}+#~]+|[^\p{L}\p{N}+#~]+$/gu, ""))
+    .filter(Boolean);
+  const fieldClause = (term: string): Filter<Document> => {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return {
+      $or: [
+        { title: { $regex: escaped, $options: "i" } },
+        { organization: { $regex: escaped, $options: "i" } },
+        { description: { $regex: escaped, $options: "i" } },
+        { tags: { $regex: escaped, $options: "i" } },
+      ],
+    };
+  };
+  if (terms.length === 0) return {};
+  if (terms.length === 1) return fieldClause(terms[0]);
+  return { $and: terms.map(fieldClause) };
+}
+
 /** Excludes only opportunities with a source-provided, definitively passed actionable date. */
 function definitivelyClosedFilter(now: Date): Filter<Document> {
   return {
@@ -88,8 +122,7 @@ export function publicOpportunityFilter(params: {
   }
 
   if (params.q) {
-    const escaped = params.q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    clauses.push({ $or: [{ title: { $regex: escaped, $options: "i" } }, { organization: { $regex: escaped, $options: "i" } }, { description: { $regex: escaped, $options: "i" } }, { tags: { $regex: escaped, $options: "i" } }] });
+    clauses.push(textSearchClause(params.q));
   }
   return { $and: clauses };
 }
@@ -127,15 +160,7 @@ export function buildCandidateFilter(params: {
 
   // Optional keyword search
   if (params.q) {
-    const escaped = params.q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    clauses.push({
-      $or: [
-        { title: { $regex: escaped, $options: "i" } },
-        { organization: { $regex: escaped, $options: "i" } },
-        { description: { $regex: escaped, $options: "i" } },
-        { tags: { $regex: escaped, $options: "i" } },
-      ],
-    });
+    clauses.push(textSearchClause(params.q));
   }
 
   return { $and: clauses };
