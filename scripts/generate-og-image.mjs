@@ -46,7 +46,7 @@ const svg = `
   <text font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-weight="700" fill="#211D2E" letter-spacing="-0.5">
     <tspan x="80" y="175" font-size="50">You shouldn't need 17 tabs</tspan>
     <tspan x="80" y="240" font-size="50">to find one good</tspan>
-    <tspan x="80" y="305" font-size="50" fill="#8B7DC7">opportunity.</tspan>
+    <tspan x="80" y="305" font-size="50"><tspan fill="url(#oppGradient)">OPPY</tspan><tspan fill="#211D2E">ortunity.</tspan></tspan>
   </text>
 
   <!-- Subtitle / category pills -->
