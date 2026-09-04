@@ -14,6 +14,73 @@ function serialize(doc: any): OpportunityDocument {
   return { ...doc, _id: doc._id.toString() };
 }
 
+/**
+ * Fields consumed by ranking (lib/relevance), CTA resolution (lib/url-utils),
+ * and the default OpportunityCard. Kept as a projection so the candidate pool
+ * transfer stays small over the slow remote Mongo link.
+ */
+const CARD_PROJECTION = {
+  title: 1,
+  organization: 1,
+  category: 1,
+  location: 1,
+  isRemote: 1,
+  description: 1,
+  tags: 1,
+  imageUrl: 1,
+  imageAlt: 1,
+  stipend: 1,
+  duration: 1,
+  sourcePlatform: 1,
+  source: 1,
+  sourceUrl: 1,
+  applicationLink: 1,
+  applicationUrl: 1,
+  officialSourceUrl: 1,
+  eventUrl: 1,
+  deadline: 1,
+  deadlineKind: 1,
+  applicationDeadline: 1,
+  registrationDeadline: 1,
+  eventDate: 1,
+  qualityScore: 1,
+  discoveredAt: 1,
+  createdAt: 1,
+  updatedAt: 1,
+  opportunityScore: 1,
+};
+
+/**
+ * Per-category quotas keep every category represented in the recommendation
+ * pool (a single global "top 300 by score" is dominated by Internships and
+ * starves Job/Event/Fellowship entirely). Within each category the pool is
+ * ordered by quality/recency — the same candidate semantics the browse
+ * discovery pages use. ~220 projected docs total, fetched in parallel.
+ */
+const POOL_QUOTAS: Record<string, number> = {
+  Internship: 75,
+  Job: 75,
+  Event: 50,
+  Fellowship: 12,
+  Hackathon: 6,
+  Scholarship: 1,
+  Grant: 20,
+  "Open Source": 20,
+};
+
+async function buildDashboardCandidatePool(opportunities: any, activeFilter: Record<string, unknown>) {
+  const buckets = await Promise.all(
+    Object.entries(POOL_QUOTAS).map(([category, limit]) =>
+      opportunities
+        .find({ ...activeFilter, category }, { projection: CARD_PROJECTION })
+        .sort({ opportunityScore: -1, createdAt: -1 })
+        .limit(limit)
+        .toArray()
+    )
+  );
+  return buckets.flat();
+}
+
 async function getDashboardData(userId: string) {
   const opportunities = await getOpportunitiesCollection();
   const saved = await getSavedOpportunitiesCollection();
@@ -31,46 +98,7 @@ async function getDashboardData(userId: string) {
     activeCount,
     recentlyViewedLinks,
   ] = await Promise.all([
-    // Rank a bounded, projected candidate pool for personalization.
-    // The dashboard only displays ~12 ranked cards, and pulling every active
-    // document (2k+ full payloads) over the remote Mongo link added ~10s to
-    // every dashboard render — which froze the post-login navigation.
-    opportunities
-      .find(activeFilter, {
-        projection: {
-          title: 1,
-          organization: 1,
-          category: 1,
-          location: 1,
-          isRemote: 1,
-          description: 1,
-          tags: 1,
-          imageUrl: 1,
-          imageAlt: 1,
-          stipend: 1,
-          duration: 1,
-          sourcePlatform: 1,
-          source: 1,
-          sourceUrl: 1,
-          applicationLink: 1,
-          applicationUrl: 1,
-          officialSourceUrl: 1,
-          eventUrl: 1,
-          deadline: 1,
-          deadlineKind: 1,
-          applicationDeadline: 1,
-          registrationDeadline: 1,
-          eventDate: 1,
-          qualityScore: 1,
-          discoveredAt: 1,
-          createdAt: 1,
-          updatedAt: 1,
-          opportunityScore: 1,
-        },
-      })
-      .sort({ opportunityScore: -1, createdAt: -1 })
-      .limit(300)
-      .toArray(),
+    buildDashboardCandidatePool(opportunities, activeFilter),
     // Closing soon: active opportunities with deadline in next 14 days
     opportunities
       .find({
