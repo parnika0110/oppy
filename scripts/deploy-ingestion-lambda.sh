@@ -9,6 +9,7 @@
 #
 # Usage:
 #   bash scripts/deploy-ingestion-lambda.sh
+#   SKIP_JSEARCH_TEST=1 bash scripts/deploy-ingestion-lambda.sh  # deploy without the live JSearch test
 #
 # This script:
 #   Step 1: Creates or updates the Lambda function
@@ -24,6 +25,10 @@ FUNCTION_NAME="oppy-ingestion"
 REGION="${AWS_DEFAULT_REGION:-ap-south-1}"
 HANDLER_FILE="lambda/dist/handler.zip"
 ROLE_NAME="oppy-ingestion-lambda-role"
+
+# Set SKIP_JSEARCH_TEST=1 to deploy code/configuration WITHOUT the live
+# JSearch smoke test (Step 6) — use when free-tier quota must be preserved.
+SKIP_JSEARCH_TEST="${SKIP_JSEARCH_TEST:-0}"
 
 echo "═══════════════════════════════════════════════════════"
 echo "  OPPY Ingestion Lambda Deployment"
@@ -193,7 +198,16 @@ aws lambda wait function-updated \
 echo "  ✅ Configuration propagated"
 
 echo ""
-echo "▶ Step 6: Testing single-source JSearch invocation..."
+if [ "$SKIP_JSEARCH_TEST" = "1" ]; then
+  echo ""
+  echo "▶ Step 6: Single-source JSearch invocation — SKIPPED"
+  echo "  SKIP_JSEARCH_TEST=1 set — no Lambda invocation was performed."
+  echo "  Deployment Steps 0–5 completed. Invoke manually when quota allows:"
+  echo "    aws lambda invoke --function-name $FUNCTION_NAME --region $REGION --payload '{\"source\": \"JSearch\"}' /tmp/response.json"
+  echo ""
+else
+  echo ""
+  echo "▶ Step 6: Testing single-source JSearch invocation..."
 echo "  Invoking Lambda with: {\"source\": \"JSearch\"}"
 echo "  ⏳ JSearch runs the reduced ~14-request plan; allow a few minutes..."
 echo ""
@@ -228,6 +242,7 @@ node -e "
   console.log(JSON.stringify(data, null, 2));
 "
 rm -f "$RESPONSE_FILE"
+fi
 
 # ── Step 7: Check CloudWatch logs ──────────────────────────────────────────
 
