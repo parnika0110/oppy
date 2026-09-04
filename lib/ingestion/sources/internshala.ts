@@ -5,18 +5,29 @@ import { resolveImageUrl } from "@/lib/images";
 /**
  * Internshala Source Adapter
  *
- * Scrapes Internshala's public internship listings.
+ * Scrapes Internshala's public internship listings from the server-rendered
+ * listing page. Each card provides structured data that we extract and normalize.
+ *
+ * Available from listing page HTML:
+ * - title, organization, location, stipend, duration
+ * - full description/responsibilities (.about_job .text)
+ * - skills (.job_skill)
+ * - posted date (relative: "1 week ago")
+ * - employment type (data attribute)
+ * - image, source URL, source ID
+ *
+ * NOT available from listing page (detail page is client-side SPA):
+ * - start date, application deadline / "Apply by"
  *
  * DIAGNOSIS (Sep 2026):
- * - All category URLs (cs, web-dev, etc.) return the SAME inventory.
+ * - All category URLs return the same inventory.
  * - The main listing page (/internships/) returns identical results.
  * - Pagination works: page-N/ returns 40 unique cards per page.
  * - Page 1 returns 50 cards; pages 2+ return 40 cards.
- * - 179 pages total (~7,149 internships).
+ * - ~7,149 internships across ~179 pages.
  *
  * STRATEGY:
  * - Use the single main listing page with pagination.
- * - Do NOT query redundant category URLs.
  * - Fetch bounded pages per run (incremental).
  * - Deduplicate by canonical Internshala URL.
  */
@@ -138,6 +149,49 @@ function extractRoleTags(title: string): string[] {
 }
 
 /**
+ * Normalize location from Internshala's raw location text.
+ * Handles: "Work from home", "Mumbai (Hybrid)", "Delhi (Remote)", etc.
+ */
+function normalizeInternshalaLocation(rawLocation: string): { location: string; isRemote: boolean } {
+  if (!rawLocation) return { location: "See posting", isRemote: false };
+
+  const cleaned = rawLocation.replace(/\s+/g, " ").trim();
+
+  // Work from home → Remote
+  if (/work\s*from\s*home/i.test(cleaned)) {
+    return { location: "Remote", isRemote: true };
+  }
+
+  // Explicit Remote
+  if (/^remote$/i.test(cleaned)) {
+    return { location: "Remote", isRemote: true };
+  }
+
+  // Extract city from patterns like "Mumbai (Hybrid)" or "Delhi (Remote)"
+  const cityMatch = cleaned.match(/^([^(]+?)\s*\((Hybrid|Remote|On[- ]site)\)\s*$/i);
+  if (cityMatch) {
+    const city = cityMatch[1].trim();
+    const arrangement = cityMatch[2].toLowerCase();
+    // Return city + arrangement for hybrid
+    if (arrangement === "hybrid") {
+      return { location: `${city} (Hybrid)`, isRemote: false };
+    }
+    if (arrangement === "remote") {
+      return { location: "Remote", isRemote: true };
+    }
+    return { location: city, isRemote: false };
+  }
+
+  // Clean city name (strip trailing parentheticals like "(Hybrid)")
+  const stripped = cleaned.replace(/\s*\((?:Hybrid|Remote|On[- ]site)\)\s*$/i, "").trim();
+  if (stripped) {
+    return { location: stripped, isRemote: false };
+  }
+
+  return { location: cleaned, isRemote: false };
+}
+
+/**
  * Parse a single Internshala card element into a RawOpportunity.
  * Returns null if the card is invalid or missing required fields.
  */
@@ -166,49 +220,59 @@ function parseCard(
     return null;
   }
 
-  // ── Company ──
-  const organization = $el.find(".company-name").first().text().trim() || "Unknown";
+  // ── Company (clean whitespace) ──
+  const organization = $el.find(".company-name").first().text().trim().replace(/\s+/g, " ") || "Unknown";
 
   // ── Location ──
-  const rawLocation = $el.find(".individual_internship_details [class*=location]")
-    .first()
-    .text()
-    .trim();
-  // Clean up: remove excessive whitespace
-  const location = rawLocation.replace(/\s+/g, " ").trim() || "Not specified";
-
-  // Detect work-from-home / remote
-  const isRemote = /work\s*from\s*home|remote/i.test(location);
-  const normalizedLocation = isRemote ? "Remote" : location;
+  const rawLocation = $el.find(".locations").first().text().trim().replace(/\s+/g, " ");
+  const { location: normalizedLocation, isRemote } = normalizeInternshalaLocation(rawLocation);
 
   // ── Stipend ──
-  const stipend = $el.find("[class*=stipend]").first().text().trim().replace(/\s+/g, " ");
+  const stipend = $el.find(".stipend").first().text().trim().replace(/\s+/g, " ") || undefined;
 
   // ── Duration ──
-  // Duration appears in the detail section (e.g., "1 Month", "3 Months", "6 Weeks")
-  // Look for text patterns like "N Month(s)" or "N Week(s)"
-  let duration = "";
+  let duration: string | undefined;
   const detailText = $el.find(".individual_internship_details").text();
   const durationMatch = detailText.match(/\b(\d+\s*(?:Month|Week|Day|Year)s?)\b/i);
   if (durationMatch) {
     duration = durationMatch[1].trim();
   }
 
-  // ── Skills ──
-  const skillsText = $el.find("[class*=skill]").first().text().trim();
-  // Skills appear concatenated (e.g., "ReactNode.jsTypeScript")
-  // Try to split on common boundaries
-  const skills = skillsText
-    ? skillsText.split(/(?=[A-Z])/).map(s => s.trim()).filter(s => s.length > 1)
-    : [];
-
-  // ── Posted date ──
-  // Appears as "2 weeks ago", "1 week ago", etc.
-  let postedDate: string | null = null;
-  const postedMatch = detailText.match(/(\d+\s*(?:minute|hour|day|week|month|year)s?\s*ago)/i);
-  if (postedMatch) {
-    postedDate = postedMatch[1].trim();
+  // ── Description (from the actual listing, not synthetic) ──
+  const aboutText = $el.find(".about_job .text").text().trim().replace(/\s+/g, " ");
+  // If the listing has a full description, use it
+  // Otherwise, build a minimal one from available structured data
+  let description: string;
+  if (aboutText && aboutText.length > 20) {
+    description = aboutText.substring(0, 2000);
+  } else {
+    // Fallback: minimal structured description (do NOT fabricate details)
+    const parts: string[] = [];
+    if (stipend) parts.push(`Stipend: ${stipend}`);
+    if (duration) parts.push(`Duration: ${duration}`);
+    if (normalizedLocation !== "See posting") parts.push(`Location: ${normalizedLocation}`);
+    description = parts.length > 0 ? parts.join(". ") + "." : `Internship at ${organization}.`;
   }
+
+  // ── Skills ──
+  const skills: string[] = [];
+  $el.find(".job_skill").each((_, skillEl) => {
+    const skill = $(skillEl).text().trim();
+    if (skill) skills.push(skill);
+  });
+
+  // ── Posted date (relative: "1 week ago", "2 days ago") ──
+  let sourcePublishedAt: string | null = null;
+  const postedEl = $el.find(".status-inactive span").first();
+  if (postedEl.length) {
+    const postedText = postedEl.text().trim();
+    if (postedText && /\d+\s*(minute|hour|day|week|month|year)s?\s*ago/i.test(postedText)) {
+      sourcePublishedAt = postedText;
+    }
+  }
+
+  // ── Employment type (from data attribute) ──
+  const employmentType = $el.attr("employment_type") || undefined;
 
   // ── Job offer mention ──
   const hasJobOffer = /job offer/i.test(detailText);
@@ -229,18 +293,12 @@ function parseCard(
   // ── Tags ──
   const roleTags = extractRoleTags(title);
 
-  // ── Description ──
-  const parts = [`Internship at ${organization}.`];
-  if (stipend) parts.push(`Stipend: ${stipend}.`);
-  if (duration) parts.push(`Duration: ${duration}.`);
-  if (normalizedLocation !== "Not specified") parts.push(`Location: ${normalizedLocation}.`);
-
   return {
     title,
     organization,
     category: "Internship" as const,
     location: normalizedLocation,
-    description: parts.join(" "),
+    description,
     applicationLink: fullLink,
     imageUrl: imageUrl && !imageUrl.includes("placeholder") ? imageUrl : undefined,
     deadline: null,
@@ -253,6 +311,10 @@ function parseCard(
     // Structured metadata extracted from listing page
     stipend: stipend || undefined,
     duration: duration || undefined,
+    // Additional structured fields
+    employmentType: employmentType || undefined,
+    sourcePublishedAt: sourcePublishedAt || undefined,
+    isRemote,
   } as any;
 }
 

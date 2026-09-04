@@ -63,12 +63,14 @@ describe("locationCompatibility", () => {
     expect(result.score).toBe(25);
   });
 
-  it("remote is compatible with any country", () => {
+  it("remote is compatible with any country (low score to avoid false city labels)", () => {
     const opp = normalizeLocation("Remote");
     const user = normalizeLocation("India");
     const result = locationCompatibility(opp, user);
     expect(result.level).toBe("remote_compatible");
-    expect(result.score).toBe(15);
+    // Score < 10 so locOk = false in getMatchLevel — prevents Remote jobs
+    // from being labeled with the user's city when filtering by city.
+    expect(result.score).toBe(8);
   });
 
   it("Bengaluru matches Karnataka state", () => {

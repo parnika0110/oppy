@@ -17,14 +17,17 @@ const DEFAULT_INTERVALS: Record<string, number> = {
   // Fast-changing: hourly
   "Hacker News Who's Hiring":       60 * 60 * 1000,    // 1 hour
 
-  // Jobs: every 2-3 hours
-  "JSearch (LinkedIn/Indeed/Glassdoor/Naukri)": 3 * 60 * 60 * 1000,
-  "LinkedIn Jobs":                  3 * 60 * 60 * 1000,
-  "Indeed Jobs":                    3 * 60 * 60 * 1000,
-  "Glassdoor Jobs":                 3 * 60 * 60 * 1000,
+  // JSearch family: ONE shared paid provider (OpenWeb Ninja, 200 req/month
+  // free tier). The umbrella grid runs every 7 days; site-scoped adapters that
+  // spend the same quota run at most every 30 days. Override any of these with
+  // the existing INGEST_INTERVAL_<SOURCE_KEY> environment mechanism.
+  "JSearch (LinkedIn/Indeed/Glassdoor/Naukri)": 7 * 24 * 60 * 60 * 1000,
+  "LinkedIn Jobs":                  30 * 24 * 60 * 60 * 1000,
+  "Indeed Jobs":                    30 * 24 * 60 * 60 * 1000,
+  "Glassdoor Jobs":                 30 * 24 * 60 * 60 * 1000,
   "Naukri":                         3 * 60 * 60 * 1000,
   "RemoteOK":                       3 * 60 * 60 * 1000,
-  "Wellfound (AngelList)":          3 * 60 * 60 * 1000,
+  "Wellfound (AngelList)":          30 * 24 * 60 * 60 * 1000,
 
   // Internships: every 3-4 hours
   "Internshala":                    4 * 60 * 60 * 1000,
@@ -45,13 +48,13 @@ const DEFAULT_INTERVALS: Record<string, number> = {
 // Friendly labels for display
 const INTERVAL_LABELS: Record<string, string> = {
   "Hacker News Who's Hiring":       "hourly",
-  "JSearch (LinkedIn/Indeed/Glassdoor/Naukri)": "every 3 hours",
-  "LinkedIn Jobs":                  "every 3 hours",
-  "Indeed Jobs":                    "every 3 hours",
-  "Glassdoor Jobs":                 "every 3 hours",
+  "JSearch (LinkedIn/Indeed/Glassdoor/Naukri)": "every 7 days",
+  "LinkedIn Jobs":                  "every 30 days",
+  "Indeed Jobs":                    "every 30 days",
+  "Glassdoor Jobs":                 "every 30 days",
   "Naukri":                         "every 3 hours",
   "RemoteOK":                       "every 3 hours",
-  "Wellfound (AngelList)":          "every 3 hours",
+  "Wellfound (AngelList)":          "every 30 days",
   "Internshala":                    "every 4 hours",
   "Eventbrite Events":              "every 6 hours",
   "Devpost":                        "every 6 hours",

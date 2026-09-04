@@ -100,13 +100,11 @@ export function normalizeLocation(raw: string): NormalizedLocation {
 
   const lower = raw.toLowerCase().trim();
 
-  // Check for remote
-  if (/remote|online|work from home|wfh|दूरस्थ/i.test(lower)) {
-    return { isRemote: true, raw };
-  }
+  // Check for remote — but don't return immediately if a city is also present
+  const isRemote = /remote|online|work from home|wfh|दूरस्थ/i.test(lower);
 
   // Check for global
-  if (/global|worldwide|international|वैश्विक/i.test(lower)) {
+  if (/global|worldwide|international|वैश्विक/i.test(lower) && !isRemote) {
     return { country: "Global", raw };
   }
 
@@ -117,10 +115,17 @@ export function normalizeLocation(raw: string): NormalizedLocation {
 
   // Check city first (most specific)
   for (const [alias, canonical] of Object.entries(CITY_ALIASES)) {
+    // Skip 'remote' alias if already detected as remote — we want the city, not 'Remote'
+    if (alias === "remote" || alias === "online" || alias === "work from home" || alias === "wfh") continue;
     if (lower.includes(alias)) {
       city = canonical;
       break;
     }
+  }
+
+  // If no city found but isRemote, return remote-only
+  if (!city && isRemote) {
+    return { isRemote: true, raw };
   }
 
   // Check state
@@ -157,7 +162,7 @@ export function normalizeLocation(raw: string): NormalizedLocation {
     if (city === "Ahmedabad" || city === "Jaipur") state = undefined; // Not primary
   }
 
-  return { city, state, country, raw };
+  return { city, state, country, isRemote: isRemote || undefined, raw };
 }
 
 /**
@@ -171,10 +176,6 @@ export function locationCompatibility(
   if (oppLoc.isRemote && userLoc.isRemote) {
     return { level: "exact_city", score: 25 };
   }
-  if (oppLoc.isRemote && userLoc.country) {
-    // Remote is compatible with any country request
-    return { level: "remote_compatible", score: 15 };
-  }
   if (userLoc.isRemote && oppLoc.isRemote) {
     return { level: "exact_city", score: 25 };
   }
@@ -184,14 +185,15 @@ export function locationCompatibility(
     return { level: "global", score: 5 };
   }
 
-  // Exact city match
+  // Exact city match — takes precedence over remote_compatible
+  // A "Bengaluru / Remote" opportunity has both city and isRemote;
+  // the city match should win.
   if (oppLoc.city && userLoc.city && oppLoc.city === userLoc.city) {
     return { level: "exact_city", score: 25 };
   }
 
-  // City in user's state
+  // City in user's state — also takes precedence over remote
   if (oppLoc.city && userLoc.state) {
-    // Check if city is in the user's state
     const stateCities: Record<string, string[]> = {
       Karnataka: ["Bengaluru"],
       Maharashtra: ["Mumbai", "Pune"],
@@ -203,6 +205,11 @@ export function locationCompatibility(
     if (cities.includes(oppLoc.city)) {
       return { level: "exact_state", score: 22 };
     }
+  }
+
+  // Remote only (no city match) — compatible but low score
+  if (oppLoc.isRemote && userLoc.country) {
+    return { level: "remote_compatible", score: 8 };
   }
 
   // Exact state match

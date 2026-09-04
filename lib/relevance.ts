@@ -259,7 +259,7 @@ export function scoreOpportunity(
       case "exact_city": location = 25; break;
       case "exact_state": location = 22; break;
       case "exact_country": location = 18; break;
-      case "remote_compatible": location = 15; break;
+      case "remote_compatible": location = locCompat.score; break;
       case "global": location = 5; break;
       case "different_country": location = prefs.remote ? 0 : -10; break;
       case "none": location = 0; break;
@@ -358,7 +358,7 @@ export function getMatchLevel(score: RelevanceScore, prefs: DiscoveryPreferences
 
 // ── Match labels ─────────────────────────────────────────────────────────
 
-export function getMatchLabels(score: RelevanceScore, prefs: DiscoveryPreferences): string[] {
+export function getMatchLabels(score: RelevanceScore, prefs: DiscoveryPreferences, oppLocation?: string): string[] {
   const labels: string[] = [];
 
   // Don't generate labels for excluded items
@@ -379,8 +379,10 @@ export function getMatchLabels(score: RelevanceScore, prefs: DiscoveryPreference
     labels.push("Remote");
   }
 
-  if (prefs.location && score.location >= 15) {
-    labels.push(prefs.location!);
+  // Location label: use the OPPORTUNITY's actual location, not the user's filter.
+  // Only show when location score is strong enough (≥ 15 = same country or better).
+  if (prefs.location && score.location >= 15 && oppLocation) {
+    labels.push(oppLocation);
   }
 
   if ((prefs.experience === "Student" || prefs.experience === "Beginner") && score.experience >= 8) {
@@ -399,7 +401,7 @@ export function rankOpportunities(
   const ranked = candidates.map(opp => {
     const score = scoreOpportunity(opp, prefs);
     const matchLevel = getMatchLevel(score, prefs);
-    const matchLabels = getMatchLabels(score, prefs);
+    const matchLabels = getMatchLabels(score, prefs, opp.location);
     return { opportunity: opp, score, matchLevel, matchLabels };
   });
 

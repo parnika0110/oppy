@@ -1,42 +1,36 @@
 import { RawOpportunity, OpportunitySource, Category } from "@/types/opportunity";
 import { detectJSearchEndpoint } from "@/lib/ingestion/jsearch-endpoint";
+import {
+  getJSearchPlanPairsForToday,
+  JSearchQueryPair,
+} from "@/lib/ingestion/jsearch-plan";
+import {
+  tryReserveJSearchRequests,
+  getJSearchRequestBudget,
+  getJSearchRequestsReserved,
+} from "@/lib/ingestion/jsearch-budget";
+import {
+  isEarlyCareerEligibleJob,
+  selectApplicationUrl,
+} from "@/lib/ingestion/job-quality";
 
 /**
- * JSearch (RapidAPI) adapter — queries aggregated job boards
- * (LinkedIn, Indeed, Glassdoor, Naukri, ZipRecruiter, etc.)
+ * JSearch (OpenWeb Ninja) umbrella adapter — queries aggregated job boards
+ * (LinkedIn, Indeed, Glassdoor, Naukri, ZipRecruiter, etc.).
  *
- * Required env: RAPIDAPI_KEY  (or JSEARCH_API_KEY as alias)
- * If neither is set, the source logs a clear "Not configured" message
- * and returns zero results — no fake data is ever emitted.
+ * Required env: JSEARCH_API_KEY (OpenWeb Ninja) — RAPIDAPI_KEY is legacy-only.
+ *
+ * Strategy notes:
+ *   - Small student-focused query plan (14 requests/cycle, India-first with a
+ *     rotating international market) instead of the old 88-request grid.
+ *   - Hard per-run request budget (JSEARCH_MAX_REQUESTS_PER_RUN) so a run can
+ *     never exceed the configured cap / free-tier quota.
+ *   - Conservative seniority filter: obvious senior-only roles are dropped.
+ *   - Application URLs are never fabricated — only provider-supplied URLs are
+ *     used, aggregator-hosted listings pass through verbatim.
+ *   - If EVERY request in a run fails, fetch() throws a summary error so the
+ *     run is recorded as failed instead of a silent "fetched: 0".
  */
-
-// JSearch API migrated from RapidAPI to OpenWeb Ninja.
-// Try the new endpoint first, fall back to legacy.
-const BASE_URLS = [
-  "https://api.openwebninja.com/jsearch/search",
-  "https://jsearch.p.rapidapi.com/search",
-];
-
-// Comprehensive queries covering all major job categories
-const SEARCH_QUERIES = [
-  // Software Engineering
-  "Software Engineering Intern",
-  "Software Developer Intern",
-  "Full Stack Developer Intern",
-  "Backend Engineering Intern",
-  "Frontend Engineering Intern",
-  // AI/ML
-  "Machine Learning Intern",
-  "Data Science Intern",
-  "AI Research Intern",
-  // General
-  "Student Developer Program",
-  "Graduate Software Engineer",
-  "Entry Level Software Engineer",
-];
-
-// Country rotation — covers major job markets + France + Singapore
-const COUNTRIES = ["IN", "US", "GB", "DE", "CA", "AU", "FR", "SG"];
 
 function mapCategory(empType?: string, title?: string): Category {
   const t = (title || "").toLowerCase();
@@ -48,12 +42,14 @@ function mapCategory(empType?: string, title?: string): Category {
 function mapJob(job: any, country: string): RawOpportunity | null {
   if (!job.job_title || !job.employer_name) return null;
 
-  const jobUrl: string =
-    job.job_apply_link ||
-    job.job_google_link ||
-    job.job_url ||
-    "";
+  // Seniority quality gate — drop obvious senior-only roles.
+  const requiredMonths =
+    typeof job?.job_required_experience?.required_experience_in_months === "number"
+      ? job.job_required_experience.required_experience_in_months
+      : undefined;
+  if (!isEarlyCareerEligibleJob(job.job_title, requiredMonths)) return null;
 
+  const jobUrl = selectApplicationUrl(job);
   if (!jobUrl) return null;
 
   const sourceId: string = job.job_id || "";
@@ -131,55 +127,88 @@ export class JSearchSource implements OpportunitySource {
       return [];
     }
 
-    console.log(`[JSearch] Starting live job discovery across ${COUNTRIES.length} markets...`);
+    const plan: JSearchQueryPair[] = getJSearchPlanPairsForToday();
+    const budget = getJSearchRequestBudget();
+    console.log(
+      `[JSearch] Starting live job discovery (${plan.length} requests planned, budget ${budget})...`
+    );
 
     const seen = new Set<string>();
     const results: RawOpportunity[] = [];
+    let filtered = 0;
+    let httpFailures = 0;
+    let lastStatus: number | null = null;
+    let budgetExhausted = false;
 
-    // Run ALL queries across ALL countries — each query × each country
-    for (const country of COUNTRIES) {
-      for (const q of SEARCH_QUERIES) {
-        try {
-          const url = new URL(endpoint.url);
-          url.searchParams.set("query", q);
-          url.searchParams.set("num_pages", "1");
-          url.searchParams.set("page", "1");
-          url.searchParams.set("date_posted", "month");
-          url.searchParams.set("country", country);
-          url.searchParams.set("language", "en");
+    for (const { country, query } of plan) {
+      // ── Budget guard: reserve before every request; stop when denied. ──
+      if (!tryReserveJSearchRequests(1)) {
+        budgetExhausted = true;
+        break;
+      }
 
-          const res = await fetch(url.toString(), {
-            headers: endpoint.headers,
-            next: { revalidate: 0 },
-          });
+      try {
+        const url = new URL(endpoint.url);
+        url.searchParams.set("query", query);
+        url.searchParams.set("num_pages", "1");
+        url.searchParams.set("page", "1");
+        url.searchParams.set("date_posted", "month");
+        url.searchParams.set("country", country);
+        url.searchParams.set("language", "en");
 
-          if (!res.ok) {
-            console.error(`[JSearch] Query '${q}' (${country}) failed: ${res.status}`);
-            continue;
-          }
+        const res = await fetch(url.toString(), {
+          headers: endpoint.headers,
+          next: { revalidate: 0 },
+        });
 
-          const data = await res.json();
-          const jobs: any[] = data?.data || [];
-
-          for (const job of jobs) {
-            if (!job.job_id || seen.has(job.job_id)) continue;
-            seen.add(job.job_id);
-
-            const mapped = mapJob(job, country);
-            if (mapped) results.push(mapped);
-          }
-
-          console.log(`[JSearch] '${q}' (${country}): ${jobs.length} raw, ${results.length} total`);
-
-          // Polite delay between requests (respect rate limits)
-          await new Promise((r) => setTimeout(r, 250));
-        } catch (err) {
-          console.error(`[JSearch] Error on '${q}' (${country}):`, err);
+        if (!res.ok) {
+          httpFailures++;
+          lastStatus = res.status;
+          console.error(`[JSearch] Query '${query}' (${country}) failed: ${res.status}`);
+          continue;
         }
+
+        const data = await res.json();
+        const jobs: any[] = data?.data || [];
+
+        for (const job of jobs) {
+          if (!job.job_id || seen.has(job.job_id)) continue;
+          seen.add(job.job_id);
+
+          const mapped = mapJob(job, country);
+          if (mapped) results.push(mapped);
+          else filtered++;
+        }
+
+        console.log(`[JSearch] '${query}' (${country}): ${jobs.length} raw, ${results.length} total`);
+
+        // Polite delay between requests (respect rate limits)
+        await new Promise((r) => setTimeout(r, 250));
+      } catch (err) {
+        httpFailures++;
+        console.error(`[JSearch] Error on '${query}' (${country}):`, err);
       }
     }
 
-    console.log(`[JSearch] Total unique jobs fetched: ${results.length}`);
+    if (budgetExhausted) {
+      console.warn(
+        `[JSearch] Request budget exhausted (${getJSearchRequestsReserved()}/${budget}) — stopping before exceeding the configured cap.`
+      );
+    }
+
+    console.log(
+      `[JSearch] Total unique jobs fetched: ${results.length} ` +
+      `(${getJSearchRequestsReserved()} requests used, ${filtered} filtered out).`
+    );
+
+    // If every request failed, surface it as an error so the run is recorded as
+    // failed rather than a misleading "fetched: 0" success.
+    if (results.length === 0 && httpFailures > 0) {
+      throw new Error(
+        `[JSearch] All ${httpFailures} requests failed (last HTTP status: ${lastStatus}) — no jobs fetched.`
+      );
+    }
+
     return results;
   }
 }

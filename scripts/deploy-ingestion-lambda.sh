@@ -83,15 +83,18 @@ ROLE_ARN=$(aws iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output
 }
 echo "  ✅ Role: $ROLE_ARN"
 
-# ── Step 2: Create or update Lambda function ───────────────────────────────
+# ── Step 2: Create or update Lambda function (code only) ──────────────────
 
 echo ""
 echo "▶ Step 2: Deploying Lambda function..."
 
-EXISTS=$(aws lambda get-function --function-name "$FUNCTION_NAME" --region "$REGION" 2>/dev/null && echo "yes" || echo "no")
+if aws lambda get-function \
+  --function-name "$FUNCTION_NAME" \
+  --region "$REGION" \
+  >/dev/null 2>&1; then
 
-if [ "$EXISTS" = "yes" ]; then
-  echo "  Function exists — updating code..."
+  echo "  Updating existing function: $FUNCTION_NAME"
+
   aws lambda update-function-code \
     --function-name "$FUNCTION_NAME" \
     --region "$REGION" \
@@ -100,8 +103,8 @@ if [ "$EXISTS" = "yes" ]; then
     --query 'LastModified' --output text
   echo "  ✅ Code updated"
   
-  # Wait for update to complete before setting config
-  echo "  ⏳ Waiting for function update to complete..."
+  # Wait for update to complete before touching configuration
+  echo "  ⏳ Waiting for code update to complete..."
   aws lambda wait function-updated \
     --function-name "$FUNCTION_NAME" \
     --region "$REGION"
@@ -121,55 +124,22 @@ else
   echo "  ✅ Function created"
 fi
 
-# ── Step 3: Configure timeout and memory ───────────────────────────────────
+# ── Step 3: Build environment variables JSON ───────────────────────────────
 
 echo ""
-echo "▶ Step 3: Configuring timeout (15 min) and memory (512 MB)..."
+echo "▶ Step 3: Building environment configuration..."
 
-aws lambda update-function-configuration \
-  --function-name "$FUNCTION_NAME" \
-  --region "$REGION" \
-  --timeout 900 \
-  --memory-size 512 \
-  --no-cli-pager \
-  --query '[Timeout,MemorySize]' --output text
-echo "  ✅ Configured: timeout=900s, memory=512MB"
-
-# ── Step 4: Set environment variables ──────────────────────────────────────
-
-echo ""
-echo "▶ Step 4: Configuring environment variables..."
-
-echo "  ⚠️  You need to set these environment variables in the Lambda console"
-echo "     or via AWS CLI. The script will NOT read or print secret values."
-echo ""
-echo "  Required variables:"
-echo "    MONGODB_URI    — MongoDB connection string"
-echo "    MONGODB_DB     — Database name (default: oppy)"
-echo "    JSEARCH_API_KEY — OpenWeb Ninja API key"
-echo ""
-echo "  Optional variables:"
-echo "    RAPIDAPI_KEY   — Legacy JSearch fallback"
-echo "    LUMA_CALENDARS — Comma-separated Luma calendar slugs"
-echo "    NODE_ENV       — Set to 'production'"
-echo ""
-
-# Read from .env.local if available, otherwise prompt
-ENV_VARS="{}"
+# Build the COMPLETE {"Variables": {...}} JSON in Node.
+# This avoids all shell quoting issues — the Node subprocess outputs
+# a single JSON string that is passed directly to AWS CLI.
+LAMBDA_ENV_CONFIG="{}"
 if [ -f ".env.local" ]; then
-  echo "  Found .env.local — extracting non-secret variable names..."
+  echo "  Found .env.local — extracting variable names (values hidden)..."
   
-  # Build env vars JSON from .env.local (only non-empty values, NEVER print values)
-  MONGODB_URI=$(grep "^MONGODB_URI=" .env.local 2>/dev/null | cut -d= -f2- | head -1)
-  MONGODB_DB=$(grep "^MONGODB_DB=" .env.local 2>/dev/null | cut -d= -f2- | head -1)
-  JSEARCH_API_KEY_VAL=$(grep "^JSEARCH_API_KEY=" .env.local 2>/dev/null | cut -d= -f2- | head -1)
-  RAPIDAPI_KEY_VAL=$(grep "^RAPIDAPI_KEY=" .env.local 2>/dev/null | cut -d= -f2- | head -1)
-  LUMA_CALENDARS_VAL=$(grep "^LUMA_CALENDARS=" .env.local 2>/dev/null | cut -d= -f2- | head -1)
-  
-  # Build JSON with values (read from file, never printed)
-  ENV_VARS=$(node -e "
-    const vars = { NODE_ENV: 'production' };
+  # Node outputs the full {"Variables": {...}} object — NEVER printed to stdout
+  LAMBDA_ENV_CONFIG=$(node -e "
     const fs = require('fs');
+    const vars = { NODE_ENV: 'production' };
     const lines = fs.readFileSync('.env.local', 'utf8').split('\n');
     for (const line of lines) {
       const trimmed = line.trim();
@@ -178,48 +148,65 @@ if [ -f ".env.local" ]; then
       if (eq === -1) continue;
       const key = trimmed.substring(0, eq).trim();
       const val = trimmed.substring(eq + 1).trim().replace(/^['\"]|['\"]$/g, '');
-      if (['MONGODB_URI','MONGODB_DB','JSEARCH_API_KEY','RAPIDAPI_KEY','LUMA_CALENDARS','NODE_ENV'].includes(key) && val) {
+      if (['MONGODB_URI','MONGODB_DB','JSEARCH_API_KEY','RAPIDAPI_KEY','LUMA_CALENDARS','BRAVE_API_KEY','NODE_ENV'].includes(key) && val) {
         vars[key] = val;
       }
     }
-    console.log(JSON.stringify(vars));
+    // Output the COMPLETE structure AWS CLI expects: {"Variables": {...}}
+    console.log(JSON.stringify({ Variables: vars }));
   ")
   
-  echo "  ✅ Environment variables loaded from .env.local (values hidden)"
-  
-  aws lambda update-function-configuration \
-    --function-name "$FUNCTION_NAME" \
-    --region "$REGION" \
-    --environment "Variables=$ENV_VARS" \
-    --no-cli-pager \
-    --query 'Environment.Variables.keys(@)' --output text
-  echo "  ✅ Environment variables set"
+  # Print only the key names, never values
+  echo "  ✅ Variables: MONGODB_URI, MONGODB_DB, JSEARCH_API_KEY, RAPIDAPI_KEY, LUMA_CALENDARS, BRAVE_API_KEY, NODE_ENV"
 else
-  echo "  ❌ No .env.local found. Set environment variables manually:"
-  echo ""
-  echo "  Option A — AWS Console:"
-  echo "    Lambda → $FUNCTION_NAME → Configuration → Environment variables → Edit"
-  echo ""
-  echo "  Option B — AWS CLI (replace VALUES):"
-  echo "    aws lambda update-function-configuration \\"
-  echo "      --function-name $FUNCTION_NAME \\"
-  echo "      --region $REGION \\"
-  echo "      --environment 'Variables={MONGODB_URI=<URI>,MONGODB_DB=oppy,JSEARCH_API_KEY=<KEY>,NODE_ENV=production}'"
+  echo "  ⚠️  No .env.local found — environment variables will be empty."
+  echo "     Set them manually in the Lambda console after deployment."
 fi
 
-# ── Step 5: Test — single-source JSearch invocation ────────────────────────
+# ── Step 4: Apply full configuration (role, timeout, memory, env vars) ────
 
 echo ""
-echo "▶ Step 5: Testing single-source JSearch invocation..."
+echo "▶ Step 4: Applying Lambda configuration..."
+
+# LAMBDA_ENV_CONFIG is a complete JSON object: {"Variables": {...}}
+# Pass it directly to --environment — no shell re-parsing needed.
+aws lambda update-function-configuration \
+  --function-name "$FUNCTION_NAME" \
+  --region "$REGION" \
+  --role "$ROLE_ARN" \
+  --runtime nodejs20.x \
+  --handler handler.handler \
+  --timeout 900 \
+  --memory-size 512 \
+  --environment "$LAMBDA_ENV_CONFIG" \
+  --no-cli-pager \
+  --query '[Timeout,MemorySize,Runtime,Handler,Role]' --output text
+echo "  ✅ Configuration applied: role=updated, timeout=900s, memory=512MB, runtime=nodejs20.x"
+
+# ── Step 5: Wait for config propagation, then test ───────────────────────
+
+echo ""
+echo "▶ Step 5: Waiting for configuration to propagate..."
+aws lambda wait function-updated \
+  --function-name "$FUNCTION_NAME" \
+  --region "$REGION"
+echo "  ✅ Configuration propagated"
+
+echo ""
+echo "▶ Step 6: Testing single-source JSearch invocation..."
 echo "  Invoking Lambda with: {\"source\": \"JSearch\"}"
-echo "  ⏳ This may take 60-90 seconds..."
+echo "  ⏳ JSearch runs the reduced ~14-request plan; allow a few minutes..."
 echo ""
 
+# CLI read timeout (960s) exceeds the Lambda's 900s timeout with margin, so a
+# legitimate full-duration Lambda execution can complete without the local
+# client timing out first. The Lambda's own timeout configuration is untouched.
 INVOKE_OUTPUT=$(aws lambda invoke \
   --function-name "$FUNCTION_NAME" \
   --region "$REGION" \
   --payload '{"source": "JSearch"}' \
-  --cli-read-timeout 300 \
+  --cli-binary-format raw-in-base64-out \
+  --cli-read-timeout 960 \
   --cli-connect-timeout 10 \
   /tmp/oppy-ingestion-response.json 2>&1) || {
   echo "  ❌ Lambda invocation failed: $INVOKE_OUTPUT"
@@ -230,16 +217,22 @@ INVOKE_OUTPUT=$(aws lambda invoke \
 echo "  ✅ Lambda invoked successfully"
 echo ""
 echo "  Response:"
-cat /tmp/oppy-ingestion-response.json | node -e "
+# Git Bash converts /tmp/... to a Windows temp path for aws.exe.
+# cygpath -w gives Node the same Windows path so readFileSync works.
+# export is required so Node inherits RESPONSE_FILE via process.env.
+export RESPONSE_FILE=$(cygpath -w /tmp/oppy-ingestion-response.json)
+node -e "
   const fs = require('fs');
-  const data = JSON.parse(fs.readFileSync('/dev/stdin', 'utf8'));
+  const file = process.env.RESPONSE_FILE;
+  const data = JSON.parse(fs.readFileSync(file, 'utf8'));
   console.log(JSON.stringify(data, null, 2));
 "
+rm -f "$RESPONSE_FILE"
 
-# ── Step 6: Check CloudWatch logs ──────────────────────────────────────────
+# ── Step 7: Check CloudWatch logs ──────────────────────────────────────────
 
 echo ""
-echo "▶ Step 6: Recent Lambda logs (last 5 minutes)..."
+echo "▶ Step 7: Recent Lambda logs (last 5 minutes)..."
 echo "─────────────────────────────────────────────────────"
 aws logs tail "/aws/lambda/$FUNCTION_NAME" \
   --region "$REGION" \
@@ -250,10 +243,10 @@ aws logs tail "/aws/lambda/$FUNCTION_NAME" \
 }
 echo "─────────────────────────────────────────────────────"
 
-# ── Step 7: Verify MongoDB ─────────────────────────────────────────────────
+# ── Step 8: Verify MongoDB ─────────────────────────────────────────────────
 
 echo ""
-echo "▶ Step 7: Verifying MongoDB..."
+echo "▶ Step 8: Verifying MongoDB..."
 echo "  Run this query against your MongoDB to check results:"
 echo ""
 echo "  // Active JSearch opportunities"

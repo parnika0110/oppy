@@ -1,4 +1,5 @@
 import { getOpportunitiesCollection } from "@/lib/mongodb";
+import { HN_MAX_AGE_DAYS } from "@/lib/ingestion/sources/hackernews";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -137,7 +138,15 @@ export async function refreshOpportunityLifecycle(): Promise<LifecycleResult> {
       (passed(opportunity.eventEndDate, now) ||
         (!opportunity.eventEndDate && passed(opportunity.eventDate, now)));
 
-    if (deadlinePassed || applicationPassed || registrationPassed || eventEnded) {
+    // ── HN-specific: close stale "Who is hiring?" posts ──────────
+    // HN monthly threads have no deadlines, so the generic logic never
+    // closes them. Close any HN-sourced opportunity older than HN_MAX_AGE_DAYS.
+    const hnStale =
+      opportunity.source === "Hacker News" &&
+      opportunity.firstSeenAt instanceof Date &&
+      now.getTime() - opportunity.firstSeenAt.getTime() > HN_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+
+    if (deadlinePassed || applicationPassed || registrationPassed || eventEnded || hnStale) {
       await collection.updateOne(
         {
           _id: opportunity._id,

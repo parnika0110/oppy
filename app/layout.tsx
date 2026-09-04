@@ -6,15 +6,34 @@ import Nav from "@/components/Nav";
 
 import Footer from "@/components/Footer";
 
+const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://main.d9g1xqqpa3n4h.amplifyapp.com";
+const OG_IMAGE = "/og-homepage.png";
+
 export const metadata: Metadata = {
-  title: "OPPY — Find opportunities before everyone else",
+  title: "OPPY — Find opportunities that fit you",
   description:
-    "Discover internships, hackathons, fellowships, scholarships, and events before deadlines pass. Real opportunities from traceable sources.",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
+    "Find internships, jobs, hackathons, fellowships, scholarships and more — all in one place.",
+  metadataBase: new URL(SITE_URL),
   openGraph: {
-    title: "OPPY — Find opportunities before everyone else",
-    description: "Real opportunity discovery. Internships, hackathons, fellowships, scholarships, events.",
+    title: "OPPY — Find opportunities that fit you",
+    description: "Find internships, jobs, hackathons, fellowships, scholarships and more — all in one place.",
+    url: SITE_URL,
+    siteName: "OPPY",
+    images: [
+      {
+        url: OG_IMAGE,
+        width: 1200,
+        height: 630,
+        alt: "OPPY — Find opportunities that fit you",
+      },
+    ],
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "OPPY — Find opportunities that fit you",
+    description: "Find internships, jobs, hackathons, fellowships, scholarships and more — all in one place.",
+    images: [OG_IMAGE],
   },
 };
 

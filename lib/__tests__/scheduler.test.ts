@@ -13,8 +13,13 @@ describe("ingestion scheduler", () => {
       expect(getSourceInterval("Hacker News Who's Hiring")).toBe(60 * 60 * 1000);
     });
 
-    it("returns 3-hour interval for JSearch", () => {
-      expect(getSourceInterval("JSearch (LinkedIn/Indeed/Glassdoor/Naukri)")).toBe(3 * 60 * 60 * 1000);
+    it("returns 7-day interval for JSearch (shared paid provider quota)", () => {
+      expect(getSourceInterval("JSearch (LinkedIn/Indeed/Glassdoor/Naukri)")).toBe(7 * 24 * 60 * 60 * 1000);
+      // Site-scoped JSearch-family adapters run at most monthly.
+      expect(getSourceInterval("LinkedIn Jobs")).toBe(30 * 24 * 60 * 60 * 1000);
+      expect(getSourceInterval("Indeed Jobs")).toBe(30 * 24 * 60 * 60 * 1000);
+      expect(getSourceInterval("Glassdoor Jobs")).toBe(30 * 24 * 60 * 60 * 1000);
+      expect(getSourceInterval("Wellfound (AngelList)")).toBe(30 * 24 * 60 * 60 * 1000);
     });
 
     it("returns 4-hour interval for Internshala", () => {
@@ -39,8 +44,8 @@ describe("ingestion scheduler", () => {
       expect(getSourceIntervalLabel("Hacker News Who's Hiring")).toBe("hourly");
     });
 
-    it("returns 'every 3 hours' for JSearch", () => {
-      expect(getSourceIntervalLabel("JSearch (LinkedIn/Indeed/Glassdoor/Naukri)")).toBe("every 3 hours");
+    it("returns 'every 7 days' for JSearch", () => {
+      expect(getSourceIntervalLabel("JSearch (LinkedIn/Indeed/Glassdoor/Naukri)")).toBe("every 7 days");
     });
   });
 
@@ -59,14 +64,14 @@ describe("ingestion scheduler", () => {
       expect(isSourceOverdue("Hacker News Who's Hiring", thirtyMinAgo)).toBe(false);
     });
 
-    it("returns false when last run was 1 hour ago for 3-hour source", () => {
-      const oneHourAgo = new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString();
-      expect(isSourceOverdue("JSearch (LinkedIn/Indeed/Glassdoor/Naukri)", oneHourAgo)).toBe(false);
+    it("returns false when last run was 1 day ago for 7-day source", () => {
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      expect(isSourceOverdue("JSearch (LinkedIn/Indeed/Glassdoor/Naukri)", oneDayAgo)).toBe(false);
     });
 
-    it("returns true when last run was 4 hours ago for 3-hour source", () => {
-      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
-      expect(isSourceOverdue("JSearch (LinkedIn/Indeed/Glassdoor/Naukri)", fourHoursAgo)).toBe(true);
+    it("returns true when last run was 8 days ago for 7-day source", () => {
+      const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+      expect(isSourceOverdue("JSearch (LinkedIn/Indeed/Glassdoor/Naukri)", eightDaysAgo)).toBe(true);
     });
   });
 
