@@ -281,7 +281,7 @@ export default async function HomePage({
             {primaryItems.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {primaryItems.map((opp, pIdx) => (
-                  <div key={opp._id} className="relative">
+                  <div key={opp._id} className="relative flex flex-col">
                     {primaryLabels[pIdx] && primaryLabels[pIdx].length > 0 && (
                       <div className="absolute left-3 top-3 z-10">
                         <span
@@ -314,7 +314,7 @@ export default async function HomePage({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                   {secondaryItems.map((opp, sIdx) => (
-                    <div key={opp._id} className="relative">
+                    <div key={opp._id} className="relative flex flex-col">
                       {secondaryLabels[sIdx] && secondaryLabels[sIdx].length > 0 && (
                         <div className="absolute left-3 top-3 z-10">
                           <span

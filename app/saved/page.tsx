@@ -110,7 +110,7 @@ export default function SavedPage() {
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {items.map((opp) => (
-              <div key={opp._id} className="relative">
+              <div key={opp._id} className="relative flex flex-col">
                 <OpportunityCard opportunity={opp} />
                 <div className="mt-1.5 px-5 pb-2">
                   <ApplicationTracker
