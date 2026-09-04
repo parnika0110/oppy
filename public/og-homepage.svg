@@ -24,7 +24,7 @@
   <text x="80" y="180" font-family="'Space Grotesk', 'Inter', system-ui, sans-serif" font-size="52" font-weight="700" fill="#211D2E" letter-spacing="-1">
     <tspan x="80" dy="0">You shouldn't need 17 tabs</tspan>
     <tspan x="80" dy="68">to find one good</tspan>
-    <tspan x="80" dy="68" fill="#8B7DC7">opportunity.</tspan>
+    <tspan x="80" dy="68"><tspan fill="url(#accent)">OPPY</tspan><tspan fill="#211D2E">ortunity.</tspan></tspan>
   </text>
 
   <!-- OPPY brand mark -->

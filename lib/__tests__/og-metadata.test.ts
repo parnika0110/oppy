@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
+import sharp from "sharp";
 
 const layoutCode = readFileSync("app/layout.tsx", "utf8");
 const detailCode = readFileSync("app/opportunity/[id]/page.tsx", "utf8");
@@ -156,5 +157,55 @@ describe("No localhost in metadata", () => {
 
   it("SITE_URL fallback is the production domain", () => {
     expect(layoutCode).toContain('"https://main.d9g1xqqpa3n4h.amplifyapp.com"');
+  });
+});
+
+// ── 7. OG image headline emphasis (OPPY vs ortonity) ─────────────────────
+
+describe("OG image — OPPYortunity headline emphasis", () => {
+  const genCode = readFileSync("scripts/generate-og-image.mjs", "utf8");
+  const svgCode = readFileSync("public/og-homepage.svg", "utf8");
+
+  it("generator renders OPPY and ortonity as separate runs", () => {
+    expect(genCode).toContain(">OPPY</tspan>");
+    expect(genCode).toContain(">ortunity.</tspan>");
+    expect(genCode).not.toContain(">opportunity.</tspan>");
+  });
+
+  it("OPPY uses the brand purple accent, ortonity uses ink", () => {
+    expect(genCode).toContain('fill="url(#oppGradient)">OPPY</tspan>');
+    expect(genCode).toContain('<tspan fill="#211D2E">ortunity.</tspan>');
+  });
+
+  it("static SVG source keeps the same split treatment", () => {
+    expect(svgCode).toContain(">OPPY</tspan>");
+    expect(svgCode).toContain(">ortunity.</tspan>");
+    expect(svgCode).not.toContain(">opportunity.</tspan>");
+  });
+
+  it("generated PNG headline shows purple OPPY + ink ortonity", async () => {
+    if (!ogPngExists) return;
+    const { data, info } = await sharp(ogPngPath)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const w = info.width;
+    const ch = info.channels;
+    let purple = 0;
+    let ink = 0;
+    // third headline line band (baseline y=305, font-size 50)
+    for (let y = 275; y < 345; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * ch;
+        const r = data[i],
+          g = data[i + 1],
+          b = data[i + 2];
+        // #8B7DC7-ish (blue-dominant purple)
+        if (Math.abs(r - 0x8b) < 45 && Math.abs(g - 0x7d) < 45 && Math.abs(b - 0xc7) < 45 && b > r && r > g) purple++;
+        // #211D2E-ish ink
+        if (Math.abs(r - 0x21) < 30 && Math.abs(g - 0x1d) < 30 && Math.abs(b - 0x2e) < 30) ink++;
+      }
+    }
+    expect(purple).toBeGreaterThan(500);
+    expect(ink).toBeGreaterThan(500);
   });
 });
