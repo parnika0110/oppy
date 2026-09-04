@@ -312,6 +312,43 @@ export default async function OpportunityDetailsPage({
         </div>
       )}
 
+      {/* ── Structured metadata (stipend, duration, type, posted) ── */}
+      {(() => {
+        const oppAny = opp as any;
+        const hasMeta = oppAny.stipend || oppAny.duration || oppAny.employmentType || oppAny.sourcePublishedAt;
+        if (!hasMeta) return null;
+        return (
+          <div className="mt-5 rounded-2xl p-5" style={{ background: "var(--paper-2)", border: "1px solid var(--line)" }}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {oppAny.stipend && (
+                <div>
+                  <p className="eyebrow mb-1">💰 Stipend</p>
+                  <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{d(oppAny.stipend)}</p>
+                </div>
+              )}
+              {oppAny.duration && (
+                <div>
+                  <p className="eyebrow mb-1">⏱ Duration</p>
+                  <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{d(oppAny.duration)}</p>
+                </div>
+              )}
+              {oppAny.employmentType && (
+                <div>
+                  <p className="eyebrow mb-1">📋 Type</p>
+                  <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{d(oppAny.employmentType.replace(/_/g, " "))}</p>
+                </div>
+              )}
+              {oppAny.sourcePublishedAt && (
+                <div>
+                  <p className="eyebrow mb-1">🕐 Posted</p>
+                  <p className="text-sm" style={{ color: "var(--ink-soft)" }}>{d(oppAny.sourcePublishedAt)}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Description ─────────────────────────────────────────── */}
       {opp.description && (
         <div

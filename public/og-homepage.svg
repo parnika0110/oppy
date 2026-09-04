@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FAF8F5"/>
+      <stop offset="100%" stop-color="#F3EFE9"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8B7DC7"/>
+      <stop offset="100%" stop-color="#6B5BA7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Subtle decorative circles -->
+  <circle cx="1050" cy="120" r="180" fill="#8B7DC7" opacity="0.06"/>
+  <circle cx="150" cy="520" r="120" fill="#8B7DC7" opacity="0.04"/>
+
+  <!-- Top accent line -->
+  <rect x="80" y="80" width="60" height="4" rx="2" fill="url(#accent)"/>
+
+  <!-- Headline -->
+  <text x="80" y="180" font-family="'Space Grotesk', 'Inter', system-ui, sans-serif" font-size="52" font-weight="700" fill="#211D2E" letter-spacing="-1">
+    <tspan x="80" dy="0">You shouldn't need 17 tabs</tspan>
+    <tspan x="80" dy="68">to find one good</tspan>
+    <tspan x="80" dy="68" fill="#8B7DC7">opportunity.</tspan>
+  </text>
+
+  <!-- OPPY brand mark -->
+  <rect x="80" y="440" width="120" height="44" rx="12" fill="#211D2E"/>
+  <text x="140" y="470" font-family="'Space Grotesk', 'Inter', system-ui, sans-serif" font-size="22" font-weight="700" fill="#FAF8F5" text-anchor="middle" letter-spacing="2">OPPY</text>
+
+  <!-- Tagline -->
+  <text x="220" y="470" font-family="'Space Grotesk', 'Inter', system-ui, sans-serif" font-size="18" fill="#6B6580" letter-spacing="0.5">
+    Find opportunities that fit you
+  </text>
+
+  <!-- Bottom URL -->
+  <text x="80" y="590" font-family="'JetBrains Mono', monospace" font-size="14" fill="#9B95A8" letter-spacing="0.5">
+    main.d9g1xqqpa3n4h.amplifyapp.com
+  </text>
+</svg>

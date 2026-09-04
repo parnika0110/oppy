@@ -3,11 +3,20 @@ import { RawOpportunity, OpportunitySource, Category } from "@/types/opportunity
 /**
  * Wellfound (formerly AngelList) Source Adapter
  *
- * Uses JSearch (RapidAPI) to find startup jobs from Wellfound/AngelList.
- * Required env: RAPIDAPI_KEY
+ * Uses JSearch (OpenWeb Ninja) to find startup jobs from Wellfound/AngelList.
+ * Required env: JSEARCH_API_KEY (OpenWeb Ninja) — RAPIDAPI_KEY is legacy-only.
+ * Shares the JSearch request budget, seniority filter and URL policy.
  */
 
 import { detectJSearchEndpoint } from "@/lib/ingestion/jsearch-endpoint";
+import {
+  tryReserveJSearchRequests,
+  getJSearchRequestsReserved,
+} from "@/lib/ingestion/jsearch-budget";
+import {
+  isEarlyCareerEligibleJob,
+  selectApplicationUrl,
+} from "@/lib/ingestion/job-quality";
 
 const BASE_URL = "https://jsearch.p.rapidapi.com/search"; // fallback
 
@@ -33,11 +42,14 @@ function mapCategory(title?: string): Category {
 function mapJob(job: any): RawOpportunity | null {
   if (!job.job_title || !job.employer_name) return null;
 
-  const jobUrl: string =
-    job.job_apply_link ||
-    job.job_google_link ||
-    job.job_url ||
-    "";
+  // Seniority quality gate — drop obvious senior-only roles.
+  const requiredMonths =
+    typeof job?.job_required_experience?.required_experience_in_months === "number"
+      ? job.job_required_experience.required_experience_in_months
+      : undefined;
+  if (!isEarlyCareerEligibleJob(job.job_title, requiredMonths)) return null;
+
+  const jobUrl = selectApplicationUrl(job);
 
   if (!jobUrl) return null;
 
@@ -108,6 +120,16 @@ export class WellfoundSource implements OpportunitySource {
     }
 
     console.log("[Wellfound] Starting Wellfound/AngelList job discovery...");
+
+    // Whole-grid budget reservation: skip cleanly when the shared per-run
+    // budget is already consumed (e.g. by the umbrella grid earlier in the
+    // same pipeline) instead of running a partial query set.
+    if (!tryReserveJSearchRequests(WELLFOUND_QUERIES.length)) {
+      console.warn(
+        `[Wellfound] Request budget exhausted (${getJSearchRequestsReserved()}) — skipping this run.`
+      );
+      return [];
+    }
 
     const seen = new Set<string>();
     const results: RawOpportunity[] = [];

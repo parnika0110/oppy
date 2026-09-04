@@ -46,10 +46,10 @@ describe("isSourceOverdue", () => {
   });
 
   it("returns false at exactly the interval boundary (strict >)", () => {
-    // JSearch: 3-hour interval. Last run exactly 3 hours ago.
+    // JSearch: 7-day interval. Last run exactly 7 days ago.
     // isSourceOverdue uses strict >, so exactly at the boundary is NOT overdue.
-    const exactlyThreeHours = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
-    expect(isSourceOverdue("JSearch (LinkedIn/Indeed/Glassdoor/Naukri)", exactlyThreeHours)).toBe(false);
+    const exactlySevenDays = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    expect(isSourceOverdue("JSearch (LinkedIn/Indeed/Glassdoor/Naukri)", exactlySevenDays)).toBe(false);
   });
 
   it("returns false just before the interval boundary", () => {
@@ -73,6 +73,12 @@ describe("getSourceInterval", () => {
     expect(getSourceInterval("Devfolio")).toBe(6 * 60 * 60 * 1000);           // 6h
     expect(getSourceInterval("Internshala")).toBe(4 * 60 * 60 * 1000);         // 4h
     expect(getSourceInterval("YC Work at a Startup")).toBe(12 * 60 * 60 * 1000); // 12h
+    // JSearch family: umbrella weekly, site-scoped monthly (shared paid quota).
+    expect(getSourceInterval("JSearch (LinkedIn/Indeed/Glassdoor/Naukri)")).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(getSourceInterval("LinkedIn Jobs")).toBe(30 * 24 * 60 * 60 * 1000);
+    expect(getSourceInterval("Indeed Jobs")).toBe(30 * 24 * 60 * 60 * 1000);
+    expect(getSourceInterval("Glassdoor Jobs")).toBe(30 * 24 * 60 * 60 * 1000);
+    expect(getSourceInterval("Wellfound (AngelList)")).toBe(30 * 24 * 60 * 60 * 1000);
   });
 
   it("defaults to 6 hours for unknown sources", () => {
@@ -231,14 +237,13 @@ describe("ingestion lock contract", () => {
     expect(true).toBe(true); // Contract verified by code inspection
   });
 
-  it("LOCK_TTL_MS is reasonable for ingestion runs", () => {
-    // The lock TTL should be long enough for a slow ingestion run but short
-    // enough that a crashed run doesn't block for too long.
-    //
-    // Current: 10 minutes. Ingestion typically runs in 1-5 minutes.
-    // This is a good balance.
-    const expectedTtl = 10 * 60 * 1000;
-    expect(expectedTtl).toBe(600_000); // 10 minutes in ms
+  it("LOCK_TTL_MS exceeds the standalone Lambda timeout", () => {
+    // The lock TTL must exceed the Lambda's 900s (15 min) timeout so a run can
+    // never outlive its own lock and let a second run overlap it.
+    // Current: 20 minutes.
+    const expectedTtl = 20 * 60 * 1000;
+    expect(expectedTtl).toBe(1_200_000); // 20 minutes in ms
+    expect(expectedTtl).toBeGreaterThan(900_000); // > Lambda timeout
   });
 });
 

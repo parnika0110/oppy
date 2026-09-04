@@ -37,11 +37,13 @@ import { normalizeLocation } from "@/lib/location-normalize";
 // Used by admin dashboard to show freshness and by ingestion scheduling.
 export const SOURCE_REFRESH_INTERVALS: Record<string, number> = {
   "Hacker News": 60 * 60 * 1000,            // 1 hour — fast-changing
-  "JSearch": 3 * 60 * 60 * 1000,            // 3 hours — job boards
-  "LinkedIn": 3 * 60 * 60 * 1000,
-  "Indeed": 3 * 60 * 60 * 1000,
-  "Glassdoor": 3 * 60 * 60 * 1000,
-  "Naukri": 3 * 60 * 60 * 1000,
+  // JSearch family shares ONE paid provider (200 req/month free tier): the
+  // umbrella grid runs every 7 days, site-scoped adapters every 30 days.
+  "JSearch": 7 * 24 * 60 * 60 * 1000,       // 7 days — shared paid provider
+  "LinkedIn": 30 * 24 * 60 * 60 * 1000,     // 30 days — site-scoped JSearch
+  "Indeed": 30 * 24 * 60 * 60 * 1000,
+  "Glassdoor": 30 * 24 * 60 * 60 * 1000,
+  "Naukri": 3 * 60 * 60 * 1000,             // direct scrape (no paid quota)
   "Internshala": 4 * 60 * 60 * 1000,        // 4 hours — internships
   "RemoteOK": 3 * 60 * 60 * 1000,           // 3 hours — remote jobs
   "Eventbrite": 6 * 60 * 60 * 1000,         // 6 hours — events
@@ -50,7 +52,7 @@ export const SOURCE_REFRESH_INTERVALS: Record<string, number> = {
   "Unstop": 6 * 60 * 60 * 1000,             // 6 hours — competitions
   "GitHub": 12 * 60 * 60 * 1000,            // 12 hours — OSS/programs
   "YCStartups": 12 * 60 * 60 * 1000,        // 12 hours — startups
-  "Wellfound": 12 * 60 * 60 * 1000,         // 12 hours — startups
+  "Wellfound": 30 * 24 * 60 * 60 * 1000,    // 30 days — site-scoped JSearch
   "Luma": 6 * 60 * 60 * 1000,              // 6 hours — events
   "RssFeedSource": 6 * 60 * 60 * 1000,      // 6 hours — RSS feeds
 };
@@ -136,7 +138,10 @@ function escapeRegex(str: string): string {
 // Prevents overlapping ingestion runs. Uses a MongoDB document as a simple lock.
 // The lock has a TTL so a crashed run doesn't permanently block future runs.
 
-const LOCK_TTL_MS = 10 * 60 * 1000; // 10 minutes — generous for slow runs
+// 20 minutes — must exceed the standalone Lambda's 900s (15 min) timeout so a
+// run can never outlive its lock and let a second run overlap it. A crashed run
+// still self-heals: the atomic upsert only matches when expiresAt <= now.
+const LOCK_TTL_MS = 20 * 60 * 1000;
 const LOCK_COLLECTION = "ingestionLock";
 
 async function acquireLock(): Promise<boolean> {
@@ -194,19 +199,23 @@ async function releaseLock(): Promise<void> {
  */
 export async function runIngestionPipeline(sourceName?: string): Promise<PipelineResult> {
   const pipelineStart = Date.now();
-  const isSingleSource = Boolean(sourceName);
 
-  // ── Concurrency lock (only for full pipeline runs) ──────────────────────
-  let lockAcquired = false;
-  if (!isSingleSource) {
-    lockAcquired = await acquireLock();
-    if (!lockAcquired) {
-      console.log("[Ingestion] Pipeline already running — skipping.");
-      return {
-        totalFetched: 0, totalInserted: 0, totalSkipped: 0, totalFailed: 0,
-        sourceResults: [], durationMs: 0, lockAcquired: false, sourcesSkipped: [],
-      };
-    }
+  // ── Concurrency lock (acquired for BOTH full-pipeline and single-source runs) ─
+  //
+  // Single-source runs used to bypass the lock, which let two overlapping
+  // manual JSearch invocations run at once (observed: two 88-request runs
+  // overlapped and double-spent the paid API quota). Every run now contends on
+  // the same Mongo lock, so a single-source run can never overlap another
+  // single-source run or a full pipeline. The lock is acquired BEFORE any
+  // provider fetch happens; a run that loses the race exits cleanly with zero
+  // external API requests.
+  const lockAcquired = await acquireLock();
+  if (!lockAcquired) {
+    console.log("[Ingestion] Pipeline already running — skipping.");
+    return {
+      totalFetched: 0, totalInserted: 0, totalSkipped: 0, totalFailed: 0,
+      sourceResults: [], durationMs: 0, lockAcquired: false, sourcesSkipped: [],
+    };
   }
 
   try {
@@ -359,8 +368,17 @@ async function runPipelineInner(sourceName: string | undefined, pipelineStart: n
               updates.sourcePlatform = raw.sourcePlatform;
             }
             // Backfill structured metadata if missing on existing record
-            if (raw.stipend && !(exists as any).stipend) updates.stipend = raw.stipend;
-            if (raw.duration && !(exists as any).duration) updates.duration = raw.duration;
+            // Prefer new source value over existing (backfilled or stale) value.
+            // Only preserve old value when new source genuinely has nothing.
+            if (raw.stipend) updates.stipend = raw.stipend;
+            if (raw.duration) updates.duration = raw.duration;
+            // Also backfill new structured fields for existing records
+            const extExisting = raw as any;
+            if (extExisting.employmentType) updates.employmentType = extExisting.employmentType;
+            if (extExisting.sourcePublishedAt) updates.sourcePublishedAt = extExisting.sourcePublishedAt;
+            if (extExisting.isRemote !== undefined) updates.isRemote = extExisting.isRemote;
+            // Clean organization if new parser has a better version
+            if (raw.organization) updates.organization = cleanIngestedText(raw.organization);
 
             await collection.updateOne({ _id: exists._id }, { $set: updates });
             result.skipped++;
@@ -407,6 +425,9 @@ async function runPipelineInner(sourceName: string | undefined, pipelineStart: n
             // Structured metadata (optional — adapters that can provide it set these)
             stipend: raw.stipend || null,
             duration: raw.duration || null,
+            employmentType: extended.employmentType || null,
+            sourcePublishedAt: extended.sourcePublishedAt || null,
+            isRemote: extended.isRemote || false,
             // Empty slots for later enrichment
             aiSummary: null,
             categoryValidation: null,

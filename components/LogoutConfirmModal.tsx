@@ -5,8 +5,9 @@ import { useEffect, useRef, useState } from "react";
 /**
  * LogoutConfirmModal — accessible confirmation dialog shown before logout.
  *
- * Usage:
- *   <LogoutConfirmModal open={show} onConfirm={handleLogout} onCancel={() => setShow(false)} />
+ * Uses inline styles for position:fixed to avoid Tailwind hydration issues.
+ * Covers the full viewport. Prevents body scroll while open.
+ * Allows modal content to scroll if taller than viewport.
  */
 export default function LogoutConfirmModal({
   open,
@@ -25,7 +26,6 @@ export default function LogoutConfirmModal({
   useEffect(() => {
     if (open) {
       setProcessing(false);
-      // Small delay so the DOM is ready
       const id = requestAnimationFrame(() => cancelRef.current?.focus());
       return () => cancelAnimationFrame(id);
     }
@@ -41,6 +41,14 @@ export default function LogoutConfirmModal({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, onCancel]);
 
+  // Prevent body scroll while modal is open
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
+
   if (!open) return null;
 
   async function handleConfirm() {
@@ -55,12 +63,22 @@ export default function LogoutConfirmModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.3)", backdropFilter: "blur(2px)" }}
+      role="presentation"
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel();
       }}
-      role="presentation"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(0,0,0,0.3)",
+        backdropFilter: "blur(2px)",
+        overflowY: "auto",
+        padding: "1rem",
+      }}
     >
       <div
         ref={dialogRef}
@@ -68,13 +86,16 @@ export default function LogoutConfirmModal({
         aria-modal="true"
         aria-labelledby="logout-title"
         aria-describedby="logout-desc"
-        className="w-full max-w-sm mx-4"
         style={{
+          width: "100%",
+          maxWidth: 340,
           background: "var(--card)",
           border: "1px solid var(--line)",
           borderRadius: 16,
           padding: "2rem",
           boxShadow: "0 8px 30px rgba(0,0,0,0.12)",
+          margin: "auto",
+          flexShrink: 0,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -92,7 +113,7 @@ export default function LogoutConfirmModal({
           You can always come back when opportunity calls.
         </p>
 
-        <div className="flex gap-3 justify-end">
+        <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
           <button
             ref={cancelRef}
             type="button"

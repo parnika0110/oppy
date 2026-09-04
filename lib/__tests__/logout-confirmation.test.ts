@@ -140,7 +140,57 @@ describe("LogoutConfirmModal — focus management", () => {
   });
 });
 
-// ── 6. AuthContext logout unchanged ──────────────────────────────────────
+// ── 6. Viewport positioning ──────────────────────────────────────────────
+
+describe("LogoutConfirmModal — viewport positioning", () => {
+  it("overlay uses position: fixed (inline style)", () => {
+    expect(modalCode).toContain('position: "fixed"');
+  });
+
+  it("overlay covers full viewport with inset: 0", () => {
+    expect(modalCode).toContain('inset: 0');
+  });
+
+  it("overlay has high z-index above page content", () => {
+    expect(modalCode).toContain('zIndex: 9999');
+  });
+
+  it("overlay uses flex centering for the dialog", () => {
+    expect(modalCode).toContain('display: "flex"');
+    expect(modalCode).toContain('alignItems: "center"');
+    expect(modalCode).toContain('justifyContent: "center"');
+  });
+
+  it("overlay allows vertical scrolling if modal exceeds viewport", () => {
+    expect(modalCode).toContain('overflowY: "auto"');
+  });
+
+  it("overlay has padding to prevent edge clipping", () => {
+    expect(modalCode).toContain('padding: "1rem"');
+  });
+
+  it("dialog has flexShrink: 0 to prevent compression", () => {
+    expect(modalCode).toContain('flexShrink: 0');
+  });
+});
+
+// ── 7. Body scroll prevention ────────────────────────────────────────────
+
+describe("LogoutConfirmModal — body scroll prevention", () => {
+  it("sets body overflow to hidden when open", () => {
+    expect(modalCode).toContain('document.body.style.overflow = "hidden"');
+  });
+
+  it("restores previous overflow on close", () => {
+    expect(modalCode).toContain('document.body.style.overflow = prev');
+  });
+
+  it("cleanup runs when modal closes", () => {
+    expect(modalCode).toContain('document.body.style.overflow = prev');
+  });
+});
+
+// ── 8. AuthContext logout unchanged ──────────────────────────────────────
 
 describe("AuthContext — logout function unchanged", () => {
   const authCode = readFileSync("lib/AuthContext.tsx", "utf8");
