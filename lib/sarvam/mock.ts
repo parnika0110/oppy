@@ -8,7 +8,9 @@
  * This preserves API credits during development and CI.
  */
 
-interface MockPreferences {
+import { parseSearchQuery } from "@/lib/search-intent";
+
+export interface MockPreferences {
   category?: string[];
   interests?: string[];
   remote?: boolean;
@@ -154,61 +156,14 @@ export function getMockInterpretation(message: string): MockPreferences | null {
     }
   }
 
-  // Fallback: try keyword extraction
+  // Fallback: deterministic keyword extraction (shared with the browse quick search)
+  const intent = parseSearchQuery(message);
   const preferences: MockPreferences = {};
-
-  // Category detection (handle plurals: internships, hackathons, etc.)
-  if (/\b(intern|internship)s?\b/i.test(lower)) preferences.category = ["Internship"];
-  else if (/\b(hackathon|hack)s?\b/i.test(lower)) preferences.category = ["Hackathon"];
-  else if (/\b(job|jobs|hiring)\b/i.test(lower)) preferences.category = ["Job"];
-  else if (/\b(fellowship)s?\b/i.test(lower)) preferences.category = ["Fellowship"];
-  else if (/\b(event|events)\b/i.test(lower)) preferences.category = ["Event"];
-  else if (/\b(grant|grants)\b/i.test(lower)) preferences.category = ["Grant"];
-  else if (/\b(scholarship)s?\b/i.test(lower)) preferences.category = ["Scholarship"];
-
-  // Interest detection — check specific domains FIRST to avoid generic matches
-  const interests: string[] = [];
-  if (/\b(cybersecurity|cyber security|infosec|pentest|penetration|vulnerability)\b/i.test(lower)) interests.push("Cybersecurity");
-  if (/\b(machine learning|artificial intelligence|deep learning|nlp|llm)\b/i.test(lower)) interests.push("AI / ML");
-  // "AI" alone only counts if preceded by a space/start and followed by space/slash/+
-  if (/\bai\b/i.test(lower) && /\b(ai\s|ai\/|\bai$)/i.test(lower)) interests.push("AI / ML");
-  if (/\bdata science\b/i.test(lower)) interests.push("Data Science");
-  if (/\b(frontend|front-end|react|vue|angular)\b/i.test(lower)) interests.push("Web Development");
-  if (/\b(backend|back-end|server)\b/i.test(lower)) interests.push("Software Engineering");
-  if (/\b(design|ux|ui|figma)\b/i.test(lower)) interests.push("Design");
-  if (/\b(open source|opensource|foss)\b/i.test(lower)) interests.push("Open Source");
-  if (/\b(product management|product manager)\b/i.test(lower)) interests.push("Product Management");
-  if (/\b(software|developer|engineer|coding)\b/i.test(lower) && !interests.length) interests.push("Software Engineering");
-  // Deduplicate
-  if (interests.length > 0) preferences.interests = [...new Set(interests)];
-
-  // Remote — match both "remote" and "remotely"
-  if (/\b(remote|remotely|work from home|wfh|online)\b/i.test(lower)) preferences.remote = true;
-
-  // Location (English) — order matters: check specific cities before countries
-  if (/\b(bengaluru|bangalore)\b/i.test(lower)) preferences.location = "Bengaluru";
-  else if (/\b(mumbai|bombay)\b/i.test(lower)) preferences.location = "Mumbai";
-  else if (/\b(delhi)\b/i.test(lower)) preferences.location = "Delhi";
-  else if (/\b(india|indian)\b/i.test(lower)) preferences.location = "India";
-  else if (/\b(us|usa|united states|america|american)\b/i.test(lower)) preferences.location = "United States";
-  else if (/\b(uk|united kingdom|britain|british|england)\b/i.test(lower)) preferences.location = "United Kingdom";
-  else if (/\b(europe|european)\b/i.test(lower)) preferences.location = "Europe";
-  else if (/\b(canada|canadian)\b/i.test(lower)) preferences.location = "Canada";
-  else if (/\b(germany|german)\b/i.test(lower)) preferences.location = "Germany";
-  else if (/\b(australia|australian)\b/i.test(lower)) preferences.location = "Australia";
-  else if (/\b(singapore)\b/i.test(lower)) preferences.location = "Singapore";
-  else if (/\b(global|worldwide|international)\b/i.test(lower)) preferences.location = "Global";
-
-  // Location (Hindi)
-  if (/भारत|bharat/i.test(lower)) preferences.location = "India";
-  if (/बेंगलुरु|बैंगलोर/i.test(lower)) preferences.location = "Bengaluru";
-  if (/मुंबई|bombay/i.test(lower)) preferences.location = "Mumbai";
-  if (/दिल्ली/i.test(lower)) preferences.location = "Delhi";
-
-  // Experience (handle plurals: students, graduates)
-  if (/\b(student|undergraduate|campus)s?\b/i.test(lower)) preferences.experience = "Student";
-  else if (/\b(recent|fresh) graduate(s)?\b/i.test(lower)) preferences.experience = "Recent Graduate";
-  else if (/\b(working professional|experienced)\b/i.test(lower)) preferences.experience = "Working Professional";
+  if (intent.categories?.length) preferences.category = intent.categories;
+  if (intent.interests?.length) preferences.interests = intent.interests;
+  if (intent.remote) preferences.remote = true;
+  if (intent.location) preferences.location = intent.location;
+  if (intent.experience) preferences.experience = intent.experience;
 
   // Only return if we found something meaningful
   if (Object.keys(preferences).length === 0) return null;
