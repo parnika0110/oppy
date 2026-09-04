@@ -265,9 +265,12 @@ export default function OpportunityCard({ opportunity, variant }: { opportunity:
   }
 
   // ── Default card variant ──────────────────────────────────────────────
+  // The root grows (flex-1) inside its grid-cell wrapper so every card in a
+  // row stretches to equal height; the flex column + mt-auto CTA keep the
+  // Apply action aligned across cards regardless of metadata length.
   return (
     <div
-      className="relative surface lift flex flex-col overflow-hidden"
+      className="relative surface lift flex flex-col overflow-hidden flex-1"
       style={{ padding: 0 }}
     >
       {/* Save + Share buttons — absolute positioned */}

@@ -143,6 +143,15 @@ describe("LogoutConfirmModal — focus management", () => {
 // ── 6. Viewport positioning ──────────────────────────────────────────────
 
 describe("LogoutConfirmModal — viewport positioning", () => {
+  it("is rendered through a portal into document.body", () => {
+    // Portaling escapes the sticky <header> whose backdrop-filter would
+    // otherwise become the containing block for position: fixed and clip
+    // the dialog to the header height.
+    expect(modalCode).toContain("createPortal(");
+    expect(modalCode).toContain('from "react-dom"');
+    expect(modalCode).toContain("document.body");
+  });
+
   it("overlay uses position: fixed (inline style)", () => {
     expect(modalCode).toContain('position: "fixed"');
   });
@@ -155,18 +164,28 @@ describe("LogoutConfirmModal — viewport positioning", () => {
     expect(modalCode).toContain('zIndex: 9999');
   });
 
-  it("overlay uses flex centering for the dialog", () => {
+  it("overlay scrolls internally when dialog exceeds viewport", () => {
+    expect(modalCode).toContain('overflowY: "auto"');
+  });
+
+  it("wrapper uses flex centering for the dialog", () => {
     expect(modalCode).toContain('display: "flex"');
     expect(modalCode).toContain('alignItems: "center"');
     expect(modalCode).toContain('justifyContent: "center"');
   });
 
-  it("overlay allows vertical scrolling if modal exceeds viewport", () => {
-    expect(modalCode).toContain('overflowY: "auto"');
+  it("wrapper uses min-height 100% so a tall dialog scrolls without clipping its top", () => {
+    expect(modalCode).toContain('minHeight: "100%"');
   });
 
-  it("overlay has padding to prevent edge clipping", () => {
+  it("wrapper has padding to keep safe vertical/horizontal margins", () => {
     expect(modalCode).toContain('padding: "1rem"');
+  });
+
+  it("does NOT center with top:50% + translateY(-50%)", () => {
+    // The translateY approach pushes a tall modal above the viewport.
+    expect(modalCode).not.toContain('top: "50%"');
+    expect(modalCode).not.toContain("translateY");
   });
 
   it("dialog has flexShrink: 0 to prevent compression", () => {

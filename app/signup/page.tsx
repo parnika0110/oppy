@@ -11,6 +11,7 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -112,15 +113,41 @@ export default function SignupPage() {
           </div>
           <div>
             <label className="eyebrow" style={{ display: "block", marginBottom: 6 }}>Password</label>
-            <input
-              type="password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl text-sm"
-              style={{ border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)" }}
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl text-sm"
+                style={{ border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)", paddingRight: 40 }}
+              />
+              <button
+                type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                onClick={() => setShowPassword(!showPassword)}
+                tabIndex={-1}
+                style={{
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "2px 4px",
+                  color: "var(--ink-soft)",
+                  fontSize: "1rem",
+                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {showPassword ? "🙈" : "👁"}
+              </button>
+            </div>
             <p style={{ fontSize: "0.75rem", color: "var(--ink-soft)", marginTop: 4 }}>At least 8 characters.</p>
           </div>
 

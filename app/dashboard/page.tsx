@@ -23,9 +23,7 @@ async function getDashboardData(userId: string) {
 
   const activeFilter = {
     $or: [{ lifecycleStatus: "active" }, { lifecycleStatus: { $exists: false }, isActive: true }],
-  };
-
-  const [
+  };  const [
     allActive,
     closingSoon,
     upcomingEvents,
@@ -33,8 +31,46 @@ async function getDashboardData(userId: string) {
     activeCount,
     recentlyViewedLinks,
   ] = await Promise.all([
-    // Rank the complete active pool for personalization (no arbitrary limit)
-    opportunities.find(activeFilter).sort({ opportunityScore: -1, createdAt: -1 }).toArray(),
+    // Rank a bounded, projected candidate pool for personalization.
+    // The dashboard only displays ~12 ranked cards, and pulling every active
+    // document (2k+ full payloads) over the remote Mongo link added ~10s to
+    // every dashboard render — which froze the post-login navigation.
+    opportunities
+      .find(activeFilter, {
+        projection: {
+          title: 1,
+          organization: 1,
+          category: 1,
+          location: 1,
+          isRemote: 1,
+          description: 1,
+          tags: 1,
+          imageUrl: 1,
+          imageAlt: 1,
+          stipend: 1,
+          duration: 1,
+          sourcePlatform: 1,
+          source: 1,
+          sourceUrl: 1,
+          applicationLink: 1,
+          applicationUrl: 1,
+          officialSourceUrl: 1,
+          eventUrl: 1,
+          deadline: 1,
+          deadlineKind: 1,
+          applicationDeadline: 1,
+          registrationDeadline: 1,
+          eventDate: 1,
+          qualityScore: 1,
+          discoveredAt: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          opportunityScore: 1,
+        },
+      })
+      .sort({ opportunityScore: -1, createdAt: -1 })
+      .limit(300)
+      .toArray(),
     // Closing soon: active opportunities with deadline in next 14 days
     opportunities
       .find({
@@ -166,7 +202,7 @@ function Section({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {items.map((opp) => (
-            <div key={opp._id} className="relative">
+            <div key={opp._id} className="relative flex flex-col">
               <OpportunityCard opportunity={opp} />
               {explanations && explanations.has(opp._id) && (
                 <div className="mt-2 flex flex-wrap gap-1.5 px-1">
