@@ -20,7 +20,7 @@ async function main() {
     entryPoints: [path.resolve(__dirname, "ingestion.ts")],
     bundle: true,
     platform: "node",
-    target: "node20",
+    target: "node24",
     outfile: path.resolve(__dirname, "dist", "handler.js"),
     format: "cjs",
     sourcemap: false,

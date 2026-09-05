@@ -118,7 +118,7 @@ else
   aws lambda create-function \
     --function-name "$FUNCTION_NAME" \
     --region "$REGION" \
-    --runtime nodejs20.x \
+    --runtime nodejs24.x \
     --handler handler.handler \
     --role "$ROLE_ARN" \
     --zip-file "fileb://$HANDLER_FILE" \
@@ -179,14 +179,14 @@ aws lambda update-function-configuration \
   --function-name "$FUNCTION_NAME" \
   --region "$REGION" \
   --role "$ROLE_ARN" \
-  --runtime nodejs20.x \
+  --runtime nodejs24.x \
   --handler handler.handler \
   --timeout 900 \
   --memory-size 512 \
   --environment "$LAMBDA_ENV_CONFIG" \
   --no-cli-pager \
   --query '[Timeout,MemorySize,Runtime,Handler,Role]' --output text
-echo "  ✅ Configuration applied: role=updated, timeout=900s, memory=512MB, runtime=nodejs20.x"
+echo "  ✅ Configuration applied: role=updated, timeout=900s, memory=512MB, runtime=nodejs24.x"
 
 # ── Step 5: Wait for config propagation, then test ───────────────────────
 
@@ -288,7 +288,7 @@ echo "  Function: $FUNCTION_NAME"
 echo "  Region:   $REGION"
 echo "  Timeout:  900s (15 min)"
 echo "  Memory:   512 MB"
-echo "  Runtime:  Node.js 20.x"
+echo "  Runtime:  Node.js 24.x"
 echo "  Handler:  handler.handler"
 echo ""
 echo "  To re-invoke manually:"

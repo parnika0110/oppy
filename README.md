@@ -25,7 +25,7 @@ OPPY discovers real opportunities from across the web — internships, jobs, hac
 - **Auth:** custom bcrypt email/password + Google OAuth, server-side DB-backed sessions
 - **Email:** EmailJS (password-reset codes, reminders)
 - **AI:** Sarvam AI (natural-language/voice), OpenAI (optional)
-- **Ingestion:** source adapters + normalization; deployed as an AWS Lambda (Node.js 20)
+- **Ingestion:** source adapters + normalization; deployed as an AWS Lambda (Node.js 24)
 - **Styling:** Tailwind CSS + custom editorial design system
 - **Testing:** Vitest
 - **Deployment:** AWS Amplify (web) + AWS Lambda (ingestion)
@@ -81,7 +81,7 @@ Key quality rules:
 
 Ingestion runs in a standalone AWS Lambda (`oppy-ingestion`) that reuses the same `lib/ingestion` pipeline validated in tests:
 
-- **Runtime:** Node.js 20 · **Memory:** 512 MB · **Timeout:** 900 s
+- **Runtime:** Node.js 24 · **Memory:** 512 MB · **Timeout:** 900 s
 - **Region:** `ap-south-1`
 - **Deploy:** `scripts/deploy-ingestion-lambda.sh` (creates or updates the function idempotently, configures env vars from `.env.local`, and runs an optional single-source JSearch smoke test — set `SKIP_JSEARCH_TEST=1` to skip it when free-tier quota must be preserved).
 - **Bundle:** `npm run lambda:build` → `lambda/dist/handler.zip`
