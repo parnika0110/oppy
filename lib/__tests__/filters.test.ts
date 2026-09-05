@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { publicOpportunityFilter, lifecycleFilter } from "@/lib/opportunities";
+import { publicOpportunityFilter, lifecycleFilter, buildCandidateFilter } from "@/lib/opportunities";
 
 describe("lifecycleFilter", () => {
   it("returns active filter when showClosed is false", () => {
@@ -84,5 +84,39 @@ describe("publicOpportunityFilter", () => {
     });
     const clauses = (filter as any).$and;
     expect(clauses.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("excludes safety-blocked records by default", () => {
+    const filter = publicOpportunityFilter({ showClosed: false });
+    const clauses = (filter as any).$and;
+    const safetyClause = clauses.find(
+      (c: any) => c.$or && c.$or.some((r: any) => r.safety !== undefined)
+    );
+    expect(safetyClause).toBeDefined();
+    const alternatives = safetyClause.$or;
+    // Records without a safety field stay visible; blocked records are excluded.
+    expect(alternatives).toContainEqual({ safety: { $exists: false } });
+    expect(alternatives).toContainEqual({ "safety.level": { $ne: "blocked" } });
+  });
+
+  it("does not apply the safety exclusion when showClosed is true", () => {
+    const filter = publicOpportunityFilter({ showClosed: true });
+    const clauses = (filter as any).$and;
+    const safetyClause = clauses.find(
+      (c: any) => c.$or && c.$or.some((r: any) => r.safety !== undefined)
+    );
+    expect(safetyClause).toBeUndefined();
+  });
+});
+
+describe("buildCandidateFilter — safety exclusion", () => {
+  it("excludes safety-blocked records from the recommendation candidate pool", () => {
+    const filter = buildCandidateFilter({});
+    const clauses = (filter as any).$and;
+    const safetyClause = clauses.find(
+      (c: any) => c.$or && c.$or.some((r: any) => r.safety !== undefined)
+    );
+    expect(safetyClause).toBeDefined();
+    expect(safetyClause.$or).toContainEqual({ "safety.level": { $ne: "blocked" } });
   });
 });

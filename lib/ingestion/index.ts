@@ -32,6 +32,7 @@ import { scoreOpportunity } from "@/lib/discovery/rank";
 import { fetchOpenGraphImage, resolveImageUrl } from "@/lib/images";
 import { cleanIngestedText } from "@/lib/html-entities";
 import { normalizeLocation } from "@/lib/location-normalize";
+import { assessOpportunitySafety } from "./opportunity-safety";
 
 // ── Source refresh intervals (in milliseconds) ──────────────────────────────
 // Used by admin dashboard to show freshness and by ingestion scheduling.
@@ -90,6 +91,7 @@ export interface SourceResult {
   inserted: number;
   skipped: number;
   failed: number;
+  blocked: number;
   errors: string[];
   durationMs: number;
 }
@@ -309,6 +311,7 @@ async function runPipelineInner(sourceName: string | undefined, pipelineStart: n
       inserted: 0,
       skipped: 0,
       failed: 0,
+      blocked: 0,
       errors: [],
       durationMs: 0,
     };
@@ -324,6 +327,26 @@ async function runPipelineInner(sourceName: string | undefined, pipelineStart: n
       // 2. Process each item
       for (const raw of rawItems) {
         try {
+          // ── Safety gate (fraud / payment-required detection) ──
+          // HIGH-confidence payment scams are never stored. The assessment is
+          // persisted for every other item so future admin tooling can review
+          // MEDIUM ("paid training", "course required before internship") flags.
+          const safety = assessOpportunitySafety({
+            title: raw.title,
+            description: raw.description,
+            category: raw.category,
+          });
+          // Widen before the guard: the `continue` below narrows safety.level,
+          // but the update path still needs the full union.
+          const safetyLevel: "clean" | "review" | "blocked" = safety.level;
+          if (safetyLevel === "blocked") {
+            result.blocked++;
+            console.warn(
+              `[Ingestion] ⛔ Blocked (safety): ${raw.title.substring(0, 60)} — ${safety.reasons.join(", ")}`
+            );
+            continue;
+          }
+
           // ── Cascading Deduplication ──
           // Priority 1: sourceUrl match
           let exists = raw.sourceUrl
@@ -379,6 +402,35 @@ async function runPipelineInner(sourceName: string | undefined, pipelineStart: n
             if (extExisting.isRemote !== undefined) updates.isRemote = extExisting.isRemote;
             // Clean organization if new parser has a better version
             if (raw.organization) updates.organization = cleanIngestedText(raw.organization);
+            // Safety: never downgrade an existing flag; upgrade clean/absent to
+            // the new assessment. (Blocked items never reach this path — the
+            // guard above already `continue`d — so only clean/review arrive.)
+            if (safetyLevel === "review") {
+              const existingSafety = (exists as any).safety;
+              if (!existingSafety || existingSafety.level === "clean") {
+                updates.safety = { level: "review", reasons: safety.reasons, assessedAt: new Date() };
+              }
+            }
+
+            // ── Reactivate when a listing is seen again ─────────────────
+            // Lifecycle may close a record whose listing stopped appearing
+            // (removed-from-source sweep, expiry, legacy-orphan closure). If the
+            // source later shows the listing again, it is live — restore it.
+            // Absence-driven closure must never be a permanent tombstone.
+            // Archived records are never resurrected.
+            const existingStatus = (exists as any).lifecycleStatus;
+            const existingActive = (exists as any).isActive;
+            if (
+              existingStatus !== "archived" &&
+              (existingStatus === "closed" || existingActive === false)
+            ) {
+              updates.isActive = true;
+              updates.lifecycleStatus = "active";
+              updates.lifecycleUpdatedAt = new Date();
+              console.log(
+                `[Ingestion] ♻️  Reactivated (listing seen again): ${raw.title.substring(0, 60)}`
+              );
+            }
 
             await collection.updateOne({ _id: exists._id }, { $set: updates });
             result.skipped++;
@@ -431,6 +483,8 @@ async function runPipelineInner(sourceName: string | undefined, pipelineStart: n
             // Empty slots for later enrichment
             aiSummary: null,
             categoryValidation: null,
+            // Safety assessment (fraud / payment-required detection)
+            safety: { level: safetyLevel, reasons: safety.reasons, assessedAt: now },
           };
 
           // Score the opportunity
@@ -464,7 +518,7 @@ async function runPipelineInner(sourceName: string | undefined, pipelineStart: n
     result.durationMs = Date.now() - sourceStart;
     console.log(
       `[Ingestion] ${source.name}: Done. ` +
-      `Fetched=${result.fetched} Inserted=${result.inserted} Skipped=${result.skipped} Failed=${result.failed} ` +
+      `Fetched=${result.fetched} Inserted=${result.inserted} Skipped=${result.skipped} Blocked=${result.blocked} Failed=${result.failed} ` +
       `(${result.durationMs}ms)`
     );
 
@@ -477,6 +531,7 @@ async function runPipelineInner(sourceName: string | undefined, pipelineStart: n
       fetched: result.fetched,
       inserted: result.inserted,
       skipped: result.skipped,
+      blocked: result.blocked,
       failed: result.failed,
       durationMs: result.durationMs,
       errors: result.errors,

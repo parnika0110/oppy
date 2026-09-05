@@ -231,3 +231,54 @@ export function hasSearchSignals(intent: SearchIntent): boolean {
     intent.experience
   );
 }
+
+/**
+ * Merge a parsed NL intent into existing URL params, producing the canonical
+ * search URL query — or null when nothing needs to change.
+ *
+ * Rules:
+ * - Starts from the EXISTING params, so explicitly selected structured filters
+ *   (remote=true, category=Job, location=Delhi, …) are preserved.
+ * - The parsed intent fills in only fields the user has not already pinned
+ *   down (setIfAbsent), then rewrites q to the leftover keywords.
+ * - Because it runs even when structured filters are already present, an
+ *   unrelated old filter (e.g. remote=true from a previous search) can never
+ *   suppress natural-language interpretation of a new keyword query.
+ */
+export function canonicalizeSearchParams(
+  params: Record<string, string | undefined>,
+  intent: SearchIntent
+): URLSearchParams | null {
+  // Plain keyword queries (no structured signals) are left untouched — they
+  // remain backward-compatible literal text searches.
+  if (!hasSearchSignals(intent)) return null;
+  const out = new URLSearchParams();
+  let changed = false;
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null) out.set(key, value);
+  }
+  const setIfAbsent = (key: string, value?: string) => {
+    if (value && !out.has(key)) {
+      out.set(key, value);
+      changed = true;
+    }
+  };
+  setIfAbsent("categories", intent.categories?.length ? intent.categories.join(",") : undefined);
+  setIfAbsent("interests", intent.interests?.length ? intent.interests.join(",") : undefined);
+  setIfAbsent("location", intent.location);
+  if (intent.remote) setIfAbsent("remote", "true");
+  setIfAbsent("experience", intent.experience);
+  const keywords = intent.keywords.join(" ");
+  if (keywords) {
+    if (out.get("q") !== keywords) {
+      out.set("q", keywords);
+      changed = true;
+    }
+  } else if (out.has("q")) {
+    out.delete("q");
+    changed = true;
+  }
+  if (!changed) return null;
+  out.delete("page");
+  return out;
+}

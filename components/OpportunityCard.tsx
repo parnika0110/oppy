@@ -134,6 +134,7 @@ export default function OpportunityCard({ opportunity, variant }: { opportunity:
   const [imgError, setImgError] = useState(false);
   const [ogFailed, setOgFailed] = useState(false);
   const cat = CATEGORY_STYLES[opportunity.category] ?? CATEGORY_STYLES.Event;
+  const isClosed = opportunity.lifecycleStatus === "closed" || opportunity.lifecycleStatus === "archived";
   const urgency = getUrgencyStyle(opportunity.deadline, opportunity.deadlineKind);
   const deadlineLabel = fmtDate(opportunity.applicationDeadline || opportunity.deadline);
   const eventDateLabel = fmtDate(opportunity.eventDate);
@@ -255,8 +256,11 @@ export default function OpportunityCard({ opportunity, variant }: { opportunity:
             )}
 
             {/* CTA */}
-            <p className="mt-2 text-[0.7rem] font-medium" style={{ color: 'var(--accent-deep)', fontFamily: "'Space Grotesk', sans-serif" }}>
-              {ctaLabel}
+            <p
+              className="mt-2 text-[0.7rem] font-medium"
+              style={{ color: isClosed ? 'var(--ink-soft)' : 'var(--accent-deep)', fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              {isClosed ? "Closed" : ctaLabel}
             </p>
           </div>
         </Link>
@@ -332,7 +336,14 @@ export default function OpportunityCard({ opportunity, variant }: { opportunity:
               via {d(sourcePlatform)}
             </span>
           )}
-          {isNew && (
+          {isClosed ? (
+            <span
+              className="inline-block text-[0.65rem] font-semibold px-2 py-0.5 rounded-full"
+              style={{ fontFamily: "'JetBrains Mono', monospace", background: "#E2E8F0", color: "#64748B" }}
+            >
+              Closed
+            </span>
+          ) : isNew && (
             <span
               className="inline-block text-[0.65rem] font-semibold px-2 py-0.5 rounded-full"
               style={{ fontFamily: "'JetBrains Mono', monospace", background: "var(--accent-deep)", color: "white" }}
@@ -450,7 +461,14 @@ export default function OpportunityCard({ opportunity, variant }: { opportunity:
 
         {/* ── 7. CTA ──── */}
         <div className="mt-auto pt-3 flex items-center justify-between gap-2">
-          {isExternalCta ? (
+          {isClosed ? (
+            <span
+              className="text-xs font-medium"
+              style={{ color: "var(--ink-soft)", fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              Closed
+            </span>
+          ) : isExternalCta ? (
             <span
               className="text-xs font-medium cursor-pointer"
               style={{ color: "var(--accent-deep)", fontFamily: "'Space Grotesk', sans-serif" }}

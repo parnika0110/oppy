@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { isApplicationTracked } from "../../lib/tracking-state";
 
 // ── Tracking UI Logic Tests ────────────────────────────────────────────
 
@@ -13,26 +14,47 @@ describe("ApplicationTracker — compact control logic", () => {
 
   it("untracked state shows '+ Track' button", () => {
     const currentStatus = undefined;
-    const isTracked = Boolean(currentStatus && currentStatus !== "saved");
+    const isTracked = isApplicationTracked(currentStatus, false);
     expect(isTracked).toBe(false);
     // UI should render "+ Track"
   });
 
+  it("first-time '+ Track' click flips the button to tracked once the POST succeeds", () => {
+    // Regression: isTracked used to be derived ONLY from the currentStatus
+    // prop (undefined on a fresh visit). Even after the POST succeeded and
+    // the status was persisted in MongoDB, the prop stayed stale, so the
+    // button remained "+ Track" and the status popup stayed locked.
+    // The local flag set after a successful POST must make it tracked.
+    const currentStatus = undefined; // still stale — fetch ran before the POST
+    expect(isApplicationTracked(currentStatus, false)).toBe(false); // before click
+    expect(isApplicationTracked(currentStatus, true)).toBe(true);    // after POST success
+  });
+
+  it("once locally started, a later server status still keeps the badge tracked", () => {
+    expect(isApplicationTracked("applied", true)).toBe(true);
+  });
+
+  it("locally started alone (no server status yet) shows the badge", () => {
+    // DetailTracker has not refetched, so currentStatus is still undefined,
+    // but the user already tracked — the badge must NOT revert to "+ Track".
+    expect(isApplicationTracked(undefined, true)).toBe(true);
+  });
+
   it("'saved' status is treated as untracked", () => {
     const currentStatus: string = "saved";
-    const isTracked = Boolean(currentStatus && currentStatus !== "saved");
+    const isTracked = isApplicationTracked(currentStatus, false);
     expect(isTracked).toBe(false);
   });
 
   it("'interested' status is treated as tracked", () => {
     const currentStatus: string = "interested";
-    const isTracked = Boolean(currentStatus && currentStatus !== "saved");
+    const isTracked = isApplicationTracked(currentStatus, false);
     expect(isTracked).toBe(true);
   });
 
   it("'applied' status is treated as tracked", () => {
     const currentStatus: string = "applied";
-    const isTracked = Boolean(currentStatus && currentStatus !== "saved");
+    const isTracked = isApplicationTracked(currentStatus, false);
     expect(isTracked).toBe(true);
   });
 

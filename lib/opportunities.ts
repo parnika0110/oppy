@@ -87,6 +87,9 @@ export function publicOpportunityFilter(params: {
     // Belt-and-suspenders: explicitly exclude closed opportunities
     // in case the lifecycle cron hasn't marked them yet.
     clauses.push({ lifecycleStatus: { $ne: "closed" } });
+    // Defensive safety gate: never surface records flagged as payment scams
+    // by the ingestion safety scorer (they are normally never stored at all).
+    clauses.push({ $or: [{ safety: { $exists: false } }, { "safety.level": { $ne: "blocked" } }] });
   }
 
   // Multi-category support: "Job,Internship" or single "Job"
@@ -146,6 +149,7 @@ export function buildCandidateFilter(params: {
   const clauses: Filter<Document>[] = [
     lifecycleFilter(false),
     definitivelyClosedFilter(new Date()),
+    { $or: [{ safety: { $exists: false } }, { "safety.level": { $ne: "blocked" } }] },
   ];
 
   // Category IS a hard filter

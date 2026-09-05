@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { isApplicationTracked } from "@/lib/tracking-state";
 
 const STATUSES = [
   { key: "interested", label: "Interested", emoji: "◉", color: "#FEF3C7", textColor: "#92400E" },
@@ -33,8 +34,9 @@ export default function ApplicationTracker({
   currentStatus?: string;
   onStatusChange?: (status: string) => void;
 }) {
-  const isTracked = Boolean(currentStatus && currentStatus !== "saved");
   const [status, setStatus] = useState<Status>((currentStatus as Status) || "interested");
+  const [locallyStarted, setLocallyStarted] = useState(false);
+  const isTracked = isApplicationTracked(currentStatus, locallyStarted);
   const [showPopup, setShowPopup] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +81,9 @@ export default function ApplicationTracker({
       });
       if (res.ok) {
         setStatus(newStatus);
+        // Mark the tracker as started locally so the badge shows immediately,
+        // even though currentStatus (fetched before this POST) is still stale.
+        setLocallyStarted(true);
         onStatusChange?.(newStatus);
         setShowPopup(false);
       } else {
