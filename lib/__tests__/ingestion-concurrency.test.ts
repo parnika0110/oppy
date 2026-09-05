@@ -39,6 +39,7 @@ const mongo = vi.hoisted(() => {
   const genericCollection = () => ({
     findOne: async () => null,
     find: () => cursor(),
+    distinct: async () => [],
     findOneAndUpdate: async () => ({ value: null }),
     updateOne: async () => ({ matchedCount: 1 }),
     updateMany: async () => ({ matchedCount: 0 }),

@@ -3,12 +3,7 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useState, useEffect, useCallback, useTransition } from "react";
 import { CATEGORIES } from "@/types/opportunity";
-
-const INTEREST_OPTIONS = [
-  "AI", "Web Development", "Open Source", "Data Science", "Design",
-  "Research", "Cybersecurity", "Product Management", "Cloud", "Startups",
-  "Mobile", "DevOps", "Python", "Machine Learning", "Fintech",
-];
+import { DISCOVERY_INTEREST_OPTIONS, resolveInterests } from "@/lib/taxonomies";
 
 const LOCATION_SUGGESTIONS = [
   "Remote", "Online", "Global", "India", "Bengaluru", "United States",
@@ -23,7 +18,9 @@ const LOCATION_SUGGESTIONS = [
  * - Traditional params: ?q=python&category=Job&location=Remote&tag=Python
  *
  * Always renders: keyword search + category chips + (optional) interest chips
- * + location + remote + sort + showClosed.
+ * + location + remote + sort. (Closed opportunities are intentionally not
+ * exposed in public discovery — they surface only in saved/application history
+ * with a Closed badge.)
  */
 export default function DiscoveryFilters() {
   const router = useRouter();
@@ -39,8 +36,12 @@ export default function DiscoveryFilters() {
   const currentLocation = searchParams.get("location") || "";
   const currentRemote = searchParams.get("remote") === "true";
   const currentSort = searchParams.get("sort") || "recommended";
-  const currentShowClosed = searchParams.get("showClosed") === "true";
   const currentTag = searchParams.get("tag") || "";
+
+  // Canonicalize interest tokens so parser-generated values ("AI / ML") and
+  // legacy chip tokens ("AI", "Machine Learning") resolve to the same
+  // canonical chip state — one source of truth via the shared taxonomy.
+  const canonicalInterests = resolveInterests(currentInterests);
 
   // Merge single category into multi for display
   const activeCategories = currentCategories.length > 0
@@ -50,19 +51,19 @@ export default function DiscoveryFilters() {
     : [];
 
   // Determine if we have preference-based filters
-  const hasPreferences = currentCategories.length > 0 || currentInterests.length > 0;
+  const hasPreferences = currentCategories.length > 0 || canonicalInterests.length > 0;
 
   // Local state for immediate feedback
   const [query, setQuery] = useState(currentQ);
   const [location, setLocation] = useState(currentLocation);
-  const [isExpanded, setIsExpanded] = useState(hasPreferences || Boolean(currentQ) || Boolean(currentCategory) || Boolean(currentLocation) || currentRemote || currentShowClosed || Boolean(currentTag));
+  const [isExpanded, setIsExpanded] = useState(hasPreferences || Boolean(currentQ) || Boolean(currentCategory) || Boolean(currentLocation) || currentRemote || Boolean(currentTag));
 
   // Sync local state with URL on back/forward
   useEffect(() => {
     setQuery(currentQ);
     setLocation(currentLocation);
-    setIsExpanded(hasPreferences || Boolean(currentQ) || Boolean(currentCategory) || Boolean(currentLocation) || currentRemote || currentShowClosed || Boolean(currentTag));
-  }, [currentQ, currentLocation, currentCategory, currentCategories.join(","), currentInterests.join(","), currentRemote, currentShowClosed, currentTag]);
+    setIsExpanded(hasPreferences || Boolean(currentQ) || Boolean(currentCategory) || Boolean(currentLocation) || currentRemote || Boolean(currentTag));
+  }, [currentQ, currentLocation, currentCategory, currentCategories.join(","), canonicalInterests.join(","), currentRemote, currentTag]);
 
   const updateParams = useCallback(
     (updates: Record<string, string | null>) => {
@@ -116,10 +117,12 @@ export default function DiscoveryFilters() {
     }
   };
 
-  const toggleInterest = (interest: string) => {
-    const next = currentInterests.includes(interest)
-      ? currentInterests.filter((i) => i !== interest)
-      : [...currentInterests, interest];
+  const toggleInterest = (option: { label: string; value: string }) => {
+    // Toggle against the CANONICAL value so chip clicks write the same token
+    // the parser produces (e.g. "AI / ML"), never a display alias ("AI").
+    const next = canonicalInterests.includes(option.value)
+      ? canonicalInterests.filter((i) => i !== option.value)
+      : [...canonicalInterests, option.value];
     updateParams({ interests: next.length > 0 ? next.join(",") : null });
   };
 
@@ -134,14 +137,13 @@ export default function DiscoveryFilters() {
   };
 
   const hasActiveFilters = Boolean(
-    query || activeCategories.length > 0 || currentInterests.length > 0 ||
-    currentLocation || currentRemote || currentShowClosed || currentTag
+    query || activeCategories.length > 0 || canonicalInterests.length > 0 ||
+    currentLocation || currentRemote || currentTag
   );
 
   const activeFilterCount =
-    activeCategories.length + currentInterests.length +
-    (currentLocation ? 1 : 0) + (currentRemote ? 1 : 0) +
-    (currentShowClosed ? 1 : 0) + (query ? 1 : 0);
+    activeCategories.length + canonicalInterests.length +
+    (currentLocation ? 1 : 0) + (currentRemote ? 1 : 0) + (query ? 1 : 0);
 
   return (
     <div
@@ -254,12 +256,12 @@ export default function DiscoveryFilters() {
               Interests
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {INTEREST_OPTIONS.map((interest) => {
-                const isActive = currentInterests.includes(interest);
+              {DISCOVERY_INTEREST_OPTIONS.map((option) => {
+                const isActive = canonicalInterests.includes(option.value);
                 return (
                   <button
-                    key={interest}
-                    onClick={() => toggleInterest(interest)}
+                    key={option.label}
+                    onClick={() => toggleInterest(option)}
                     className="text-xs px-3 py-1.5 rounded-full transition-all"
                     type="button"
                     style={{
@@ -271,7 +273,7 @@ export default function DiscoveryFilters() {
                     }}
                     aria-pressed={isActive}
                   >
-                    {interest}
+                    {option.label}
                   </button>
                 );
               })}
@@ -334,31 +336,6 @@ export default function DiscoveryFilters() {
               <option value="score">Highest score</option>
             </select>
 
-            <label
-              className="flex items-center gap-1.5 cursor-pointer px-3 py-1.5 rounded-xl transition-colors"
-              style={{
-                border: "1px solid", borderColor: currentShowClosed ? "var(--accent-deep)" : "var(--line)",
-                background: currentShowClosed ? "var(--accent)" : "var(--paper)",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={currentShowClosed}
-                onChange={(e) => updateParams({ showClosed: e.target.checked ? "true" : null })}
-                className="sr-only"
-              />
-              <span className="w-3 h-3 rounded-sm border flex items-center justify-center"
-                style={{ borderColor: currentShowClosed ? "var(--accent-deep)" : "var(--ink-soft)", background: currentShowClosed ? "var(--accent-deep)" : "transparent" }}>
-                {currentShowClosed && (
-                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                    <path d="M1.5 4L3 5.5L6.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </span>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.7rem", color: currentShowClosed ? "var(--accent-deep)" : "var(--ink-soft)" }}>
-                Closed
-              </span>
-            </label>
 
             {hasActiveFilters && (
               <button

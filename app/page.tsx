@@ -8,7 +8,7 @@ import { OpportunityDocument } from "@/types/opportunity";
 import { publicOpportunityFilter, opportunitySort, buildCandidateFilter } from "@/lib/opportunities";
 import { getOpportunitiesCollection } from "@/lib/mongodb";
 import { rankOpportunities, getMatchSummary, type DiscoveryPreferences } from "@/lib/relevance";
-import { parseSearchQuery, hasSearchSignals } from "@/lib/search-intent";
+import { parseSearchQuery, hasSearchSignals, canonicalizeSearchParams } from "@/lib/search-intent";
 
 /** Parse URL params into DiscoveryPreferences. */
 function parsePreferences(params: Record<string, string | undefined>): DiscoveryPreferences {
@@ -188,45 +188,21 @@ export default async function HomePage({
 }) {
   const params = await searchParams;
 
-  // ── Natural-language interpretation for plain quick searches ─────────
-  // Only when the URL is a bare keyword search (no structured filters):
-  // parse phrases like "AI Internships in Bengaluru" into the same
-  // structured params the filter UI / AI wizard produce, so the chips,
-  // ranking and exact-vs-related semantics match what the user typed.
-  const hasStructuredFilters = !!(params.categories || params.category || params.interests || params.location || params.remote || params.experience || params.tag);
-  if (params.q && !hasStructuredFilters) {
+  // ── Natural-language interpretation for keyword searches ──────────────
+  // Parse phrases like "AI Internships in Bengaluru" into the same structured
+  // params the filter UI / AI wizard produce, so chips, ranking and
+  // exact-vs-related semantics match what the user typed.
+  //
+  // Runs for ANY keyword search — even when structured filters already exist
+  // in the URL (e.g. remote=true from a previous search). An unrelated old
+  // filter must never suppress interpretation of a new NL query; explicitly
+  // selected filters are preserved (canonicalizeSearchParams only fills in
+  // what the intent specifies and the user has not already pinned down).
+  if (params.q) {
     const intent = parseSearchQuery(params.q);
     if (hasSearchSignals(intent)) {
-      const out = new URLSearchParams();
-      let changed = false;
-      for (const [key, value] of Object.entries(params)) {
-        if (value !== undefined && value !== null) out.set(key, value);
-      }
-      const setIfAbsent = (key: string, value?: string) => {
-        if (value && !out.has(key)) {
-          out.set(key, value);
-          changed = true;
-        }
-      };
-      setIfAbsent("categories", intent.categories?.length ? intent.categories.join(",") : undefined);
-      setIfAbsent("interests", intent.interests?.length ? intent.interests.join(",") : undefined);
-      setIfAbsent("location", intent.location);
-      if (intent.remote) setIfAbsent("remote", "true");
-      setIfAbsent("experience", intent.experience);
-      const keywords = intent.keywords.join(" ");
-      if (keywords) {
-        if (out.get("q") !== keywords) {
-          out.set("q", keywords);
-          changed = true;
-        }
-      } else if (out.has("q")) {
-        out.delete("q");
-        changed = true;
-      }
-      if (changed) {
-        out.delete("page");
-        redirect(`/?${out.toString()}`);
-      }
+      const out = canonicalizeSearchParams(params, intent);
+      if (out) redirect(`/?${out.toString()}`);
     }
   }
 

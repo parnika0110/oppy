@@ -292,6 +292,20 @@ export function getPopularInterests(): TaxonomyEntry[] {
   return INTEREST_TAXONOMY_ENTRIES.filter((e) => e.popular);
 }
 
+/**
+ * Interest chips shown in the Discovery filter panel, with canonical taxonomy
+ * values. Display labels stay human-friendly ("AI", "Machine Learning") while
+ * both resolve to the SAME canonical value ("AI / ML"), so chip clicks and the
+ * natural-language parser write identical URL tokens and the active-state
+ * check canonicalizes URL values the same way. Labels not in the taxonomy
+ * (e.g. "Python") keep their label as the value.
+ */
+export const DISCOVERY_INTEREST_OPTIONS: { label: string; value: string }[] = [
+  "AI", "Web Development", "Open Source", "Data Science", "Design",
+  "Research", "Cybersecurity", "Product Management", "Cloud", "Startups",
+  "Mobile", "DevOps", "Python", "Machine Learning", "Fintech",
+].map((label) => ({ label, value: resolveInterest(label)?.label ?? label }));
+
 export function getPopularLocations(): TaxonomyEntry[] {
   return LOCATION_TAXONOMY.filter((e) => e.popular);
 }

@@ -126,6 +126,12 @@ export interface OpportunityDocument {
   qualityScore?: number | null;
   opportunityScore?: number | null;
   scoreVersion?: string | null;
+  /** Safety assessment from ingestion (fraud/payment detection). Blocked records are never stored; review records remain visible pending admin tooling. */
+  safety?: {
+    level: "clean" | "review" | "blocked";
+    reasons: string[];
+    assessedAt: string;
+  } | null;
   enrichmentVersion?: string | null;
   source?: string | null;
   sourceUrl?: string | null;
@@ -208,6 +214,8 @@ export interface IngestionRun {
   fetched: number;
   inserted: number;
   skipped: number;
+  /** Items rejected by the safety gate (HIGH-confidence payment scams) — optional, omitted on older docs. */
+  blocked?: number;
   failed: number;
   durationMs: number;
   errors: string[];
