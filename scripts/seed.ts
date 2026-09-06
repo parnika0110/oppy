@@ -29,6 +29,12 @@ interface ProgramEntry {
   sourcePlatform: string;
   tags: string[];
   deadlineDaysOut: number;
+  /**
+   * Curator-verified explicit application deadline for the current cycle
+   * (ISO timestamp with timezone offset). Must come from the source page —
+   * never estimated. Omit when unverified.
+   */
+  deadline?: string;
 }
 
 const REAL_PROGRAMS: ProgramEntry[] = [
@@ -185,6 +191,9 @@ const REAL_PROGRAMS: ProgramEntry[] = [
     sourcePlatform: "Other",
     tags: ["hackathon", "mit", "in-person", "prizes", "student"],
     deadlineDaysOut: 120,
+    // Source-verified: hackmit.org states the 2026 application deadline is
+    // July 4, 2026 at 11:59 PM ET. Verified from the live source, not inferred.
+    deadline: "2026-07-04T23:59:00-04:00",
   },
   {
     title: "TreeHacks",
@@ -316,20 +325,22 @@ async function seed() {
     });
 
     if (exists) {
-    // Never manufacture a deadline for the static catalog.
-      await collection.updateOne(
-        { _id: exists._id },
-        {
-          $set: {
-            deadline: null,
-            deadlineKind: "unavailable",
-            deadlineLastVerifiedAt: null,
-            lastSeenAt: new Date(),
-            tags: program.tags,
-            description: program.description,
-          },
-        }
-      );
+      // Never manufacture a deadline we cannot verify; only use
+      // curator-verified dates from the catalog. When the catalog carries no
+      // deadline, existing deadline fields are left untouched (never nulled
+      // out) — and lifecycle state is never modified here.
+      const update: Record<string, unknown> = {
+        lastSeenAt: new Date(),
+        tags: program.tags,
+        description: program.description,
+      };
+      if (program.deadline) {
+        update.deadline = new Date(program.deadline);
+        update.applicationDeadline = new Date(program.deadline);
+        update.deadlineKind = "verified";
+        update.deadlineLastVerifiedAt = new Date();
+      }
+      await collection.updateOne({ _id: exists._id }, { $set: update });
       console.log(`  ⟳ Updated: ${program.title}`);
       skipped++;
       continue;
@@ -345,9 +356,10 @@ async function seed() {
       description: program.description,
       applicationLink: program.applicationLink,
       imageUrl: null,
-      deadline: null,
-      deadlineKind: "unavailable",
-      deadlineLastVerifiedAt: null,
+      deadline: program.deadline ? new Date(program.deadline) : null,
+      applicationDeadline: program.deadline ? new Date(program.deadline) : null,
+      deadlineKind: program.deadline ? "verified" : "unavailable",
+      deadlineLastVerifiedAt: program.deadline ? new Date() : null,
       source: program.organization,
       sourceUrl: program.applicationLink,
       sourcePlatform: program.sourcePlatform,

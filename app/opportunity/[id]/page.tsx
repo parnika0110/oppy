@@ -254,7 +254,7 @@ export default async function OpportunityDetailsPage({
               ) : (
                 <div className="surface-flat p-4">
                   <p className="eyebrow mb-1">Application deadline</p>
-                  <p className="text-sm" style={{ color: "var(--ink-soft)", opacity: 0.7 }}>Unavailable</p>
+                  <p className="text-sm" style={{ color: "var(--ink-soft)", opacity: 0.7 }}>No deadline listed — check the source</p>
                 </div>
               )}
               {regDeadline && (

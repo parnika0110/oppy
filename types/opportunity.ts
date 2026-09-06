@@ -176,6 +176,10 @@ export interface CreateOpportunityInput {
  */
 export interface RawOpportunity extends Omit<CreateOpportunityInput, "deadline"> {
   deadline?: Date | string | null;
+  /** Optional — adapters that verified an explicit application deadline can carry it directly. */
+  applicationDeadline?: Date | string | null;
+  /** Optional — when the adapter verified the deadline itself. */
+  deadlineLastVerifiedAt?: Date | null;
   sourcePlatform: SourcePlatform;
   sourceId?: string; // Unique ID from the source platform (e.g. Devpost slug)
   /** Structured metadata — optional, extracted by adapters that can provide it. */

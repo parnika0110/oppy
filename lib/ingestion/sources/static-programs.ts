@@ -8,7 +8,10 @@ import { RawOpportunity, OpportunitySource, Category, SourcePlatform } from "@/t
  * application cycles that are always relevant to students.
  *
  * The source never invents a deadline. A program remains visible with an
- * unavailable deadline until a curator verifies the current cycle.
+ * unavailable deadline until a curator verifies the current cycle. When a
+ * curator HAS verified an explicit deadline for the current cycle, it is
+ * carried as an ISO date in the entry's `deadline` field (source-verified,
+ * never guessed) and normalized to deadlineKind "verified".
  */
 
 interface ProgramEntry {
@@ -23,6 +26,12 @@ interface ProgramEntry {
   tags: string[];
   /** Legacy catalog metadata. Not used as a deadline. */
   deadlineDaysOut: number;
+  /**
+   * Curator-verified explicit application deadline for the CURRENT cycle,
+   * as an ISO timestamp with its timezone offset (e.g. "2026-07-04T23:59:00-04:00").
+   * Must come from the source page — never estimated. Omit when unverified.
+   */
+  deadline?: string;
 }
 
 const REAL_PROGRAMS: ProgramEntry[] = [
@@ -209,6 +218,9 @@ const REAL_PROGRAMS: ProgramEntry[] = [
     sourcePlatform: "Other",
     tags: ["hackathon", "mit", "in-person", "prizes", "student"],
     deadlineDaysOut: 120,
+    // Source-verified: hackmit.org states the 2026 application deadline is
+    // July 4, 2026 at 11:59 PM ET. Verified from the live source, not inferred.
+    deadline: "2026-07-04T23:59:00-04:00",
   },
   {
     title: "TreeHacks",
@@ -295,8 +307,14 @@ export class StaticProgramsSource implements OpportunitySource {
         location: program.location,
         description: program.description,
         applicationLink: program.applicationLink,
-        deadline: null,
-        deadlineKind: "unavailable",
+        // When the catalog carries a curator-verified deadline for the current
+        // cycle, emit the full verified shape. Otherwise preserve the
+        // null/unavailable behavior — deadlineDaysOut is never used as a
+        // deadline.
+        deadline: program.deadline ? new Date(program.deadline) : null,
+        deadlineKind: program.deadline ? "verified" : "unavailable",
+        applicationDeadline: program.deadline ? new Date(program.deadline) : null,
+        deadlineLastVerifiedAt: program.deadline ? new Date() : null,
         source: program.organization,
         sourceUrl: program.applicationLink,
         sourcePlatform: program.sourcePlatform,

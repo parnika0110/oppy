@@ -346,18 +346,25 @@ export async function refreshOpportunityLifecycle(): Promise<LifecycleResult> {
       now.getTime() - opportunity.firstSeenAt.getTime() > HN_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
 
     if (deadlinePassed || applicationPassed || registrationPassed || eventEnded || hnStale) {
+      const closeUpdate: Record<string, unknown> = {
+        lifecycleStatus: "closed",
+        isActive: false,
+        lifecycleUpdatedAt: now,
+        updatedAt: now,
+      };
+      // Deadline/application/registration closures carry an explicit reason
+      // (consistent with the sweep's removed_from_source and the orphan
+      // reconciliation's legacy_orphan_unseen).
+      if (deadlinePassed || applicationPassed || registrationPassed) {
+        closeUpdate.closedReason = "deadline_passed";
+      }
       await collection.updateOne(
         {
           _id: opportunity._id,
           lifecycleStatus: { $ne: "archived" },
         },
         {
-          $set: {
-            lifecycleStatus: "closed",
-            isActive: false,
-            lifecycleUpdatedAt: now,
-            updatedAt: now,
-          },
+          $set: closeUpdate,
         }
       );
       closed++;

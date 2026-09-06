@@ -64,6 +64,8 @@ describe("deadline classification", () => {
 });
 
 // Test display label logic
+const NO_DEADLINE_FALLBACK = "No deadline listed — check the source";
+
 function deadlineLabel(
   deadlineKind: string | null,
   deadline: Date | null,
@@ -78,7 +80,7 @@ function deadlineLabel(
     }).format(effectiveDeadline);
   }
   if (deadlineKind === "rolling") return "Rolling / Open";
-  return "Unavailable";
+  return NO_DEADLINE_FALLBACK;
 }
 
 describe("deadline display", () => {
@@ -92,11 +94,45 @@ describe("deadline display", () => {
     expect(deadlineLabel("rolling", null, null)).toBe("Rolling / Open");
   });
 
-  it("shows Unavailable when no deadline", () => {
-    expect(deadlineLabel("unavailable", null, null)).toBe("Unavailable");
+  it("shows graceful fallback when no deadline is listed", () => {
+    expect(deadlineLabel("unavailable", null, null)).toBe(NO_DEADLINE_FALLBACK);
   });
 
-  it("shows Unavailable when deadlineKind is null", () => {
-    expect(deadlineLabel(null, null, null)).toBe("Unavailable");
+  it("shows graceful fallback when deadlineKind is null", () => {
+    expect(deadlineLabel(null, null, null)).toBe(NO_DEADLINE_FALLBACK);
+  });
+
+  it("never infers a deadline from an event date", () => {
+    // A record with only eventDate still gets the fallback, never a fake date
+    expect(deadlineLabel("unavailable", null, null)).toBe(NO_DEADLINE_FALLBACK);
+  });
+});
+
+// Structural regression: the detail page must distinguish verified deadlines
+// from genuinely-absent ones instead of showing a bare "Unavailable".
+import { readFileSync } from "fs";
+
+describe("opportunity detail page — deadline fallback", () => {
+  const pageCode = readFileSync("app/opportunity/[id]/page.tsx", "utf8");
+
+  it("renders the graceful no-deadline fallback", () => {
+    expect(pageCode).toContain(NO_DEADLINE_FALLBACK);
+  });
+
+  it("no longer renders bare 'Unavailable' for the deadline", () => {
+    expect(pageCode).not.toMatch(/>Unavailable<\//);
+  });
+
+  it("still renders verified deadlines and Rolling / Open", () => {
+    expect(pageCode).toContain("{appDeadline}");
+    expect(pageCode).toContain("Rolling / Open");
+  });
+
+  it("shows a Closed badge alongside a verified (passed) deadline in history views", () => {
+    // Closed record + verified deadline must render BOTH the date and the
+    // Closed state — the opportunity stays visible in tracking history.
+    expect(pageCode).toContain("{isClosed && (");
+    expect(pageCode).toContain("Closed");
+    expect(pageCode).toContain("{appDeadline && isVerifiedDeadline ? (");
   });
 });

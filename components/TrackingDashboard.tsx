@@ -37,10 +37,38 @@ interface TrackingEntry {
     isRemote?: boolean;
     applicationLink?: string;
     sourceUrl?: string;
+    lifecycleStatus?: string;
+    isActive?: boolean;
+    deadline?: string | null;
+    applicationDeadline?: string | null;
+    deadlineKind?: string;
   } | null;
 }
 
-export default function TrackingDashboard() {
+/**
+ * Whether the tracked opportunity is no longer actionable (closed by the
+ * lifecycle pipeline or archived). It stays in tracking history — we never
+ * delete it — but is visually marked as not-open rather than looking live.
+ */
+function isNotActionable(opp: NonNullable<TrackingEntry["opportunity"]>): boolean {
+  return opp.lifecycleStatus === "closed" || opp.lifecycleStatus === "archived" || opp.isActive === false;
+}
+
+/**
+ * Show a verified application deadline when the source provided one.
+ * Never infers a deadline from event dates or posting dates.
+ */
+function deadlineLabel(opp: NonNullable<TrackingEntry["opportunity"]>): string | null {
+  const kind = opp.deadlineKind;
+  if (!["verified", "source_provided"].includes(kind || "")) return null;
+  const raw = opp.applicationDeadline || opp.deadline;
+  if (!raw) return null;
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(d);
+}
+
+export default function TrackingDashboard({ standalone = false }: { standalone?: boolean }) {
   const { user, loading: authLoading } = useAuth();
   const [entries, setEntries] = useState<TrackingEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,17 +106,30 @@ export default function TrackingDashboard() {
     ? entries
     : entries.filter((e) => e.status === activeFilter);
 
-  // Don't render section if user has zero tracked items and hasn't loaded yet
-  if (!loading && entries.length === 0) return null;
+  // Embedded on the dashboard: hide the whole section when there is nothing
+  // tracked yet. On the standalone /dashboard/applications page we always
+  // render so the empty state + CTA are visible.
+  if (!standalone && !loading && entries.length === 0) return null;
 
   return (
     <section className="mb-10">
-      <h2
-        className="font-display font-semibold mb-4"
-        style={{ fontSize: "1.15rem", color: "var(--ink)" }}
-      >
-        Your applications
-      </h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2
+          className="font-display font-semibold"
+          style={{ fontSize: "1.15rem", color: "var(--ink)" }}
+        >
+          Your applications
+        </h2>
+        {!standalone && entries.length > 0 && (
+          <Link
+            href="/dashboard/applications"
+            className="text-xs font-medium underline-hover transition-colors"
+            style={{ color: "var(--ink-soft)" }}
+          >
+            View all →
+          </Link>
+        )}
+      </div>
 
       {loading ? (
         <div className="flex gap-3">
@@ -104,9 +145,16 @@ export default function TrackingDashboard() {
           <div className="flex items-center gap-3">
             <ThemedOppyOrb mood="curious" size={28} />
             <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
-              No tracked applications yet. Click &quot;＋ Track&quot; on any opportunity to start.
+              Nothing tracked yet.
             </p>
           </div>
+          <Link
+            href="/"
+            className="shrink-0 text-xs font-medium px-4 py-2 rounded-full transition-opacity hover:opacity-85"
+            style={{ background: "var(--ink)", color: "var(--paper)", fontFamily: "'Space Grotesk', sans-serif" }}
+          >
+            Browse opportunities →
+          </Link>
         </div>
       ) : (
         <>
@@ -160,7 +208,11 @@ export default function TrackingDashboard() {
                   <div
                     key={entry._id}
                     className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors"
-                    style={{ background: "var(--card)", border: "1px solid var(--line)" }}
+                    style={{
+                      background: "var(--card)",
+                      border: "1px solid var(--line)",
+                      opacity: opp && isNotActionable(opp) ? 0.72 : 1,
+                    }}
                   >
                     {/* Status badge */}
                     <span
@@ -178,17 +230,41 @@ export default function TrackingDashboard() {
                     {/* Opportunity info */}
                     <div className="flex-1 min-w-0">
                       {opp ? (
-                        <Link
-                          href={`/opportunity/${opp._id}`}
-                          className="block hover:underline"
-                          style={{ color: "var(--ink)" }}
-                        >
-                          <p className="text-sm font-medium line-clamp-1">{opp.title}</p>
-                          <p className="text-xs line-clamp-1" style={{ color: "var(--ink-soft)" }}>
-                            {opp.organization}
-                            {opp.location && ` · ${opp.isRemote ? "Remote" : opp.location}`}
-                          </p>
-                        </Link>
+                        <>
+                          <Link
+                            href={`/opportunity/${opp._id}`}
+                            className="block hover:underline"
+                            style={{ color: "var(--ink)" }}
+                          >
+                            <p className="text-sm font-medium line-clamp-1">{opp.title}</p>
+                            <p className="text-xs line-clamp-1" style={{ color: "var(--ink-soft)" }}>
+                              {opp.organization}
+                              {opp.location && ` · ${opp.isRemote ? "Remote" : opp.location}`}
+                            </p>
+                            {deadlineLabel(opp) && (
+                              <p className="text-[0.62rem] mt-0.5" style={{ color: "var(--ink-soft)" }}>
+                                Deadline: {deadlineLabel(opp)}
+                              </p>
+                            )}
+                          </Link>
+                          {opp.category && (
+                            <span className="text-[0.6rem] font-semibold uppercase tracking-wide mt-1 inline-block" style={{ color: "var(--ink-soft)" }}>
+                              {opp.category}
+                            </span>
+                          )}
+                          {isNotActionable(opp) && (
+                            <span
+                              className="inline-flex items-center text-[0.62rem] font-semibold px-2 py-0.5 rounded-full ml-2 align-baseline"
+                              style={{
+                                fontFamily: "'JetBrains Mono', monospace",
+                                background: "var(--paper-2, #f0ecf9)",
+                                color: "var(--ink-soft)",
+                              }}
+                            >
+                              {opp.lifecycleStatus === "archived" ? "Archived" : "Closed"}
+                            </span>
+                          )}
+                        </>
                       ) : (
                         <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
                           Opportunity no longer available

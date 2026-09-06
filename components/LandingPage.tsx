@@ -76,15 +76,19 @@ function selectHeroCards(opps: OpportunityDocument[]): OpportunityDocument[] {
   return selected;
 }
 
-const CATEGORIES = [
-  "Internships",
-  "Hackathons",
-  "Jobs",
-  "Fellowships",
-  "Scholarships",
-  "Events",
-  "Open Source",
-  "Grants",
+// Quick-filter chips. The browse/filter system matches the canonical singular
+// category values (Internship, Hackathon, ...), so the href must use those,
+// not the plural display labels. "Open Source" is an interest, not a category
+// in the canonical taxonomy, so it links via the interests filter instead.
+const CATEGORY_CHIPS = [
+  { label: "Internships", href: "/?category=Internship" },
+  { label: "Hackathons", href: "/?category=Hackathon" },
+  { label: "Jobs", href: "/?category=Job" },
+  { label: "Fellowships", href: "/?category=Fellowship" },
+  { label: "Scholarships", href: "/?category=Scholarship" },
+  { label: "Events", href: "/?category=Event" },
+  { label: "Open Source", href: "/?interests=Open%20Source" },
+  { label: "Grants", href: "/?category=Grant" },
 ];
 
 
@@ -169,14 +173,14 @@ export default function LandingPage({ liveOpps, activeCount }: { liveOpps: Oppor
           ════════════════════════════════════════════════════════════════ */}
       <section className="lp-strip" aria-label="Categories">
         <div className="lp-strip-inner">
-          {[...CATEGORIES, ...CATEGORIES].map((cat, i) => (
+          {[...CATEGORY_CHIPS, ...CATEGORY_CHIPS].map((chip, i) => (
             <a
               key={i}
-              href={`/?category=${encodeURIComponent(cat)}&sort=recommended`}
+              href={`${chip.href}&sort=recommended`}
               className="lp-strip-item"
               style={{ textDecoration: "none", color: "inherit", cursor: "pointer" }}
             >
-              {cat}
+              {chip.label}
               <span className="lp-strip-dot">·</span>
             </a>
           ))}

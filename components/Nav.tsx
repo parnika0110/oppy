@@ -46,6 +46,9 @@ export default function Nav() {
           <a href="/saved" className="underline-hover hover:text-[var(--ink)] transition-colors">
             Saved
           </a>
+          <a href="/dashboard/applications" className="underline-hover hover:text-[var(--ink)] transition-colors">
+            Applications
+          </a>
           <a href="/profile" className="underline-hover hover:text-[var(--ink)] transition-colors">
             Profile
           </a>
