@@ -33,7 +33,36 @@ export default function Nav() {
   }
 
   return (
-    <nav className="flex items-center gap-6 text-sm font-medium" style={{ color: "var(--ink-soft)" }}>
+    <nav
+      className="flex items-center gap-6 text-sm font-medium flex-wrap justify-end"
+      style={{ color: "var(--ink-soft)" }}
+    >
+      {/* Ask OPPY — voice entry point (adds to, never replaces, text search) */}
+      <a
+        href="/voice"
+        title="Ask OPPY — voice search"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-opacity hover:opacity-85"
+        style={{
+          background: "var(--accent)",
+          color: "#3A3168",
+          border: "1px solid var(--accent-deep)",
+          whiteSpace: "nowrap",
+          textDecoration: "none",
+        }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 1 0-7 0v5A3.5 3.5 0 0 0 12 15Z"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path d="M6 11.5a6 6 0 0 0 12 0M12 17.5V21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        Ask OPPY
+      </a>
+
       <a href="/" className="underline-hover hover:text-[var(--ink)] transition-colors">
         Browse
       </a>
